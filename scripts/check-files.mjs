@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 const base = process.env.BASE_REF ?? 'origin/main';
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const IMAGE_EXTENSIONS = /\.(png|jpe?g|webp|gif|avif|svg)$/i;
-const SAFE_PATH = /^[A-Za-z0-9._\/-]+$/;
+const SAFE_PATH = /^[A-Za-z0-9._\/\[\]-]+$/;
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 
@@ -16,7 +16,7 @@ const errors = [];
 
 for (const file of changed) {
   if (!SAFE_PATH.test(file)) {
-    errors.push(`${file}: ファイル名に使えるのは半角英数字と . _ - のみです（日本語・空白は不可）`);
+    errors.push(`${file}: ファイル名に使えるのは半角英数字と . _ - [ ] のみです（日本語・空白は不可）`);
     continue;
   }
   if (file.startsWith('public/images/') && !file.endsWith('/.gitkeep')) {
