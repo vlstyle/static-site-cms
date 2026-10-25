@@ -1,0 +1,126 @@
+backend:
+  name: github
+  repo: __REPO__
+  branch: __BRANCH__
+__BASE_URL_LINE__
+publish_mode: editorial_workflow
+
+media_folder: public/images
+public_folder: /images
+
+slug:
+  encoding: ascii
+  timezone: local
+
+media_libraries:
+  default:
+    config:
+      filename_template: "{{year}}{{month}}{{day}}-{{uuid_shorter}}"
+      max_file_size: 5242880
+      transformations:
+        raster_image: { format: webp, quality: 85, width: 2000, height: 2000 }
+        svg: { optimize: true }
+
+site_url: __SITE_URL__
+display_url: __SITE_URL__
+
+collections:
+  - name: news
+    label: お知らせ
+    label_singular: お知らせ
+    folder: src/content/news
+    extension: md
+    format: frontmatter
+    create: true
+    slug:
+      template: "{{year}}{{month}}{{day}}-{{uuid_shorter}}"
+      editable: false
+    summary: "{{date | date('YYYY-MM-DD')}} {{title}}"
+    sortable_fields: [date, title]
+    fields:
+      - { name: title, label: タイトル, widget: string }
+      - { name: date, label: 日付, widget: datetime, time_format: false, date_format: "YYYY-MM-DD" }
+      - { name: publishDate, label: 公開日時（未来を指定すると予約公開）, widget: datetime, required: false }
+      - { name: image, label: 画像, widget: image, required: false }
+      - { name: body, label: 本文, widget: markdown }
+
+  - name: events
+    label: イベント
+    label_singular: イベント
+    folder: src/content/events
+    extension: md
+    format: frontmatter
+    create: true
+    slug:
+      template: "{{year}}{{month}}{{day}}-{{uuid_shorter}}"
+      editable: false
+    summary: "{{startDate | date('YYYY-MM-DD')}} {{title}}"
+    sortable_fields: [startDate, title]
+    fields:
+      - { name: title, label: イベント名, widget: string }
+      - { name: startDate, label: 開始日時, widget: datetime }
+      - { name: endDate, label: 終了日時, widget: datetime, required: false }
+      - { name: venue, label: 会場, widget: string, required: false }
+      - { name: applyUrl, label: 申込URL, widget: string, required: false }
+      - { name: publishDate, label: 公開日時（未来を指定すると予約公開）, widget: datetime, required: false }
+      - { name: image, label: 画像, widget: image, required: false }
+      - { name: body, label: 詳細, widget: markdown }
+
+  - name: lp
+    label: ランディングページ
+    label_singular: ランディングページ
+    folder: src/content/lp
+    extension: yaml
+    format: yaml
+    create: true
+    slug:
+      editable: [create]
+      hint: "URLの一部になります。半角英小文字・数字・ハイフンのみ（例: spring-campaign）。作成後は変更できません"
+      pattern: ["^[a-z0-9]+(-[a-z0-9]+)*$", "半角英小文字・数字・ハイフンのみ使えます（例: spring-campaign）"]
+    fields:
+      - { name: title, label: ページタイトル, widget: string }
+      - { name: description, label: 説明文, widget: text, required: false }
+      - { name: publishDate, label: 公開日時（未来を指定すると予約公開）, widget: datetime, required: false }
+      - name: blocks
+        label: ブロック
+        label_singular: ブロック
+        widget: list
+        types:
+          - name: hero
+            label: ヒーロー
+            widget: object
+            fields:
+              - { name: heading, label: 見出し, widget: string }
+              - { name: subheading, label: サブ見出し, widget: string, required: false }
+              - { name: image, label: 画像, widget: image, required: false }
+              - { name: ctaLabel, label: ボタン文言, widget: string, required: false }
+              - { name: ctaUrl, label: ボタンURL, widget: string, required: false }
+          - name: features
+            label: 特長リスト
+            widget: object
+            fields:
+              - { name: heading, label: 見出し, widget: string, required: false }
+              - name: items
+                label: 項目
+                widget: list
+                fields:
+                  - { name: title, label: タイトル, widget: string }
+                  - { name: text, label: 説明, widget: text }
+          - name: text
+            label: テキスト
+            widget: object
+            fields:
+              - { name: body, label: 本文（空行で段落を分けます）, widget: text }
+          - name: event-list
+            label: イベント一覧
+            widget: object
+            fields:
+              - { name: heading, label: 見出し, widget: string, required: false }
+              - { name: limit, label: 表示件数, widget: number, value_type: int, min: 1, default: 3 }
+          - name: cta
+            label: 申込ボタン
+            widget: object
+            fields:
+              - { name: heading, label: 見出し, widget: string }
+              - { name: label, label: ボタン文言, widget: string }
+              - { name: url, label: ボタンURL, widget: string }

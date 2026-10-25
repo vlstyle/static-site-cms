@@ -1,0 +1,22 @@
+---
+interface Props { heading?: string; items: { title: string; text: string }[] }
+const { heading, items } = Astro.props;
+---
+<section class="features">
+  {heading && <h2>{heading}</h2>}
+  <ul>
+    {items.map((item) => (
+      <li>
+        <h3>{item.title}</h3>
+        <p>{item.text}</p>
+      </li>
+    ))}
+  </ul>
+</section>
+<style>
+  .features { padding: 32px 0; }
+  ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  li { background: var(--soft); border-radius: 8px; padding: 16px 20px; }
+  h3 { margin: 0 0 4px; }
+  p { margin: 0; color: var(--muted); }
+</style>

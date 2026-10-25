@@ -1,0 +1,30 @@
+{
+  "name": "static-site-cms",
+  "version": "0.1.0",
+  "description": "Astro integration, blocks and tooling for a Git-based static site managed with Sveltia CMS",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/integration.mjs",
+    "./content": "./src/content.ts",
+    "./pages/*": "./src/pages/*"
+  },
+  "bin": {
+    "cms-build-admin": "scripts/build-admin.mjs",
+    "cms-serve-admin": "scripts/serve-admin.mjs",
+    "cms-check-files": "scripts/check-files.mjs",
+    "cms-path-guard": "scripts/path-guard.mjs"
+  },
+  "files": [
+    "src",
+    "admin",
+    "scripts"
+  ],
+  "peerDependencies": {
+    "astro": "^7.0.0"
+  },
+  "devDependencies": {
+    "@sveltia/cms": "0.251.0",
+    "astro": "7.4.2"
+  }
+}

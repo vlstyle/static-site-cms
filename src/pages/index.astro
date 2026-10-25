@@ -1,0 +1,18 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import { formatDate, isPublished } from '../lib/published';
+
+const news = (await getCollection('news'))
+  .filter((n) => isPublished(n))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
+  .slice(0, 5);
+const pages = (await getCollection('lp')).filter((p) => isPublished(p));
+---
+<Base title="Home">
+  <h1>Home</h1>
+  <h2>ランディングページ</h2>
+  <ul>{pages.map((p) => <li><a href={`/lp/${p.id}/`}>{p.data.title}</a></li>)}</ul>
+  <h2>お知らせ</h2>
+  <ul>{news.map((n) => <li>{formatDate(n.data.date)} <a href={`/news/${n.id}/`}>{n.data.title}</a></li>)}</ul>
+</Base>

@@ -1,0 +1,21 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { formatDate, isPublished } from '../../lib/published';
+
+const now = new Date();
+const all = (await getCollection('events'))
+  .filter((e) => isPublished(e, now))
+  .sort((a, b) => a.data.startDate.getTime() - b.data.startDate.getTime());
+const isUpcoming = (e: (typeof all)[number]) => (e.data.endDate ?? e.data.startDate) >= now;
+const upcoming = all.filter(isUpcoming);
+const past = all.filter((e) => !isUpcoming(e)).reverse();
+---
+<Base title="イベント">
+  <h1>イベント</h1>
+  <h2>開催予定</h2>
+  {upcoming.length === 0 && <p>現在予定されているイベントはありません。</p>}
+  <ul>{upcoming.map((e) => <li>{formatDate(e.data.startDate)} <a href={`/events/${e.id}/`}>{e.data.title}</a></li>)}</ul>
+  <h2>終了したイベント</h2>
+  <ul>{past.map((e) => <li>{formatDate(e.data.startDate)} <a href={`/events/${e.id}/`}>{e.data.title}</a></li>)}</ul>
+</Base>

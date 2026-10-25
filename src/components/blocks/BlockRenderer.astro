@@ -1,0 +1,20 @@
+---
+import type { Block } from '../../content';
+import Hero from './Hero.astro';
+import Features from './Features.astro';
+import Text from './Text.astro';
+import EventList from './EventList.astro';
+import Cta from './Cta.astro';
+
+interface Props { blocks: Block[] }
+const { blocks } = Astro.props;
+---
+{blocks.map((block) => {
+  switch (block.type) {
+    case 'hero': return <Hero {...block} />;
+    case 'features': return <Features {...block} />;
+    case 'text': return <Text {...block} />;
+    case 'event-list': return <EventList {...block} />;
+    case 'cta': return <Cta {...block} />;
+  }
+})}

@@ -1,0 +1,21 @@
+---
+import { getCollection, render, type CollectionEntry } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { formatDate, isPublished } from '../../lib/published';
+
+export async function getStaticPaths() {
+  const news = (await getCollection('news')).filter((n) => isPublished(n));
+  return news.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props as { entry: CollectionEntry<'news'> };
+const { Content } = await render(entry);
+---
+<Base title={entry.data.title}>
+  <article>
+    <h1>{entry.data.title}</h1>
+    <time>{formatDate(entry.data.date)}</time>
+    {entry.data.image && <img src={entry.data.image} alt="" style="max-width:100%" />}
+    <Content />
+  </article>
+</Base>

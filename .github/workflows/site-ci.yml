@@ -1,0 +1,69 @@
+name: Site CI
+
+on:
+  workflow_call:
+    secrets:
+      team-read-token:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run build:admin
+
+  path-guard:
+    name: path-guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - id: role
+        env:
+          GH_TOKEN: ${{ secrets.team-read-token }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          role=operator
+          for team in site-poweruser site-admins; do
+            if gh api "orgs/${GITHUB_REPOSITORY_OWNER}/teams/${team}/memberships/${AUTHOR}" --silent 2>/dev/null; then
+              role=privileged
+            fi
+          done
+          echo "role=${role}" >> "$GITHUB_OUTPUT"
+      - run: npx cms-path-guard
+        env:
+          AUTHOR_ROLE: ${{ steps.role.outputs.role }}
+          BASE_REF: origin/${{ github.base_ref }}
+
+  file-check:
+    name: file-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx cms-check-files
+        env:
+          BASE_REF: origin/${{ github.base_ref }}

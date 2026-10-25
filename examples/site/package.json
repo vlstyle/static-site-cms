@@ -1,0 +1,18 @@
+{
+  "name": "example-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "build:admin": "cms-build-admin",
+    "dev:admin": "cms-build-admin && cms-serve-admin"
+  },
+  "dependencies": {
+    "astro": "7.4.2",
+    "static-site-cms": "file:../.."
+  },
+  "devDependencies": {
+    "@sveltia/cms": "0.251.0"
+  }
+}

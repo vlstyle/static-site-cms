@@ -1,0 +1,62 @@
+name: Site preview
+
+on:
+  workflow_call:
+    inputs:
+      preview-bucket:
+        type: string
+        required: true
+      preview-domain:
+        type: string
+        required: true
+      aws-region:
+        type: string
+        default: ap-northeast-1
+      role-arn:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  deploy:
+    if: github.event.action != 'closed' && inputs.role-arn != ''
+    runs-on: ubuntu-latest
+    env:
+      PREFIX: pr-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          PREVIEW: "1"
+          SITE_URL: https://${{ env.PREFIX }}.${{ inputs.preview-domain }}
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ inputs.role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+      - run: aws s3 sync dist "s3://${{ inputs.preview-bucket }}/${PREFIX}/" --delete
+      - run: |
+          gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body "プレビュー: https://${PREFIX}.${PREVIEW_DOMAIN}/ （最新コミット: ${SHA::7}、閲覧にはBasic認証が必要です）"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PREVIEW_DOMAIN: ${{ inputs.preview-domain }}
+
+  cleanup:
+    if: github.event.action == 'closed' && inputs.role-arn != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ inputs.role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+      - run: aws s3 rm "s3://${{ inputs.preview-bucket }}/pr-${{ github.event.pull_request.number }}/" --recursive

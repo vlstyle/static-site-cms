@@ -1,0 +1,16 @@
+---
+interface Props { heading: string; subheading?: string; image?: string; ctaLabel?: string; ctaUrl?: string }
+const { heading, subheading, image, ctaLabel, ctaUrl } = Astro.props;
+---
+<section class="hero">
+  {image && <img src={image} alt="" />}
+  <h1>{heading}</h1>
+  {subheading && <p>{subheading}</p>}
+  {ctaLabel && ctaUrl && <a class="btn" href={ctaUrl}>{ctaLabel}</a>}
+</section>
+<style>
+  .hero { text-align: center; padding: 56px 0; }
+  .hero img { max-width: 100%; height: auto; border-radius: 8px; }
+  .hero h1 { font-size: clamp(1.8rem, 5vw, 3rem); margin: 16px 0 8px; }
+  .hero p { color: var(--muted); font-size: 1.15rem; margin: 0 0 24px; }
+</style>

@@ -1,0 +1,31 @@
+---
+import { getCollection } from 'astro:content';
+import { formatDate, isPublished } from '../../lib/published';
+
+interface Props { heading?: string; limit: number }
+const { heading, limit } = Astro.props;
+const now = new Date();
+const events = (await getCollection('events'))
+  .filter((e) => isPublished(e, now) && (e.data.endDate ?? e.data.startDate) >= now)
+  .sort((a, b) => a.data.startDate.getTime() - b.data.startDate.getTime())
+  .slice(0, limit);
+---
+<section class="events">
+  {heading && <h2>{heading}</h2>}
+  {events.length === 0 && <p>現在予定されているイベントはありません。</p>}
+  <ul>
+    {events.map((e) => (
+      <li>
+        <time datetime={e.data.startDate.toISOString()}>{formatDate(e.data.startDate)}</time>
+        <a href={`/events/${e.id}/`}>{e.data.title}</a>
+        {e.data.venue && <span>（{e.data.venue}）</span>}
+      </li>
+    ))}
+  </ul>
+</section>
+<style>
+  .events { padding: 32px 0; }
+  ul { padding: 0; list-style: none; }
+  li { padding: 8px 0; border-bottom: 1px solid var(--soft); }
+  time { color: var(--muted); margin-right: 12px; }
+</style>

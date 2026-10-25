@@ -1,0 +1,10 @@
+---
+interface Props { body: string }
+const paragraphs = Astro.props.body.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+---
+<section class="text">
+  {paragraphs.map((p) => <p>{p}</p>)}
+</section>
+<style>
+  .text { padding: 16px 0; }
+</style>

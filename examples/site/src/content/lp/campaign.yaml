@@ -1,0 +1,24 @@
+title: 新サービス紹介キャンペーン
+description: 新サービスの紹介ページ
+blocks:
+  - type: hero
+    heading: 新しい体験を、もっと身近に
+    subheading: 今だけの特別キャンペーンを実施中です
+    ctaLabel: 詳しく見る
+    ctaUrl: "#features"
+  - type: features
+    heading: 3つの特長
+    items:
+      - title: かんたん
+        text: 申し込みは数分で完了します。
+      - title: あんしん
+        text: 専任スタッフがサポートします。
+      - title: おトク
+        text: 期間限定の特典があります。
+  - type: event-list
+    heading: 開催予定のイベント
+    limit: 3
+  - type: cta
+    heading: まずはお気軽にご相談ください
+    label: 申し込む
+    url: https://example.com/apply

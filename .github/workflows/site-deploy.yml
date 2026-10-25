@@ -1,0 +1,83 @@
+name: Site deploy
+
+on:
+  workflow_call:
+    inputs:
+      site-url:
+        type: string
+        default: ""
+      deploy-target:
+        type: string
+        default: none
+      aws-role-arn:
+        type: string
+        default: ""
+      aws-region:
+        type: string
+        default: ap-northeast-1
+      s3-bucket:
+        type: string
+        default: ""
+      cloudfront-distribution-id:
+        type: string
+        default: ""
+      admin-rsync-target:
+        type: string
+        default: ""
+      admin-runner-labels:
+        type: string
+        default: '["self-hosted"]'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          SITE_URL: ${{ inputs.site-url }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist
+
+  deploy-aws:
+    needs: build
+    if: inputs.deploy-target == 'aws'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ inputs.aws-role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+      - run: aws s3 sync dist "s3://${{ inputs.s3-bucket }}" --delete
+      - run: aws cloudfront create-invalidation --distribution-id "${{ inputs.cloudfront-distribution-id }}" --paths "/*"
+
+  deploy-admin:
+    if: inputs.admin-rsync-target != ''
+    runs-on: ${{ fromJSON(inputs.admin-runner-labels) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:admin
+        env:
+          SITE_URL: ${{ inputs.site-url }}
+      - run: rsync -a --delete dist-admin/ "${{ inputs.admin-rsync-target }}"
