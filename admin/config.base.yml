@@ -1,0 +1,26 @@
+backend:
+  name: github
+  repo: __REPO__
+  branch: __BRANCH__
+__BASE_URL_LINE__
+publish_mode: editorial_workflow
+
+media_folder: public/images
+public_folder: /images
+
+slug:
+  encoding: ascii
+  timezone: local
+
+media_libraries:
+  default:
+    config:
+      filename_template: "{{year}}{{month}}{{day}}-{{uuid_shorter}}"
+      max_file_size: 5242880
+      transformations:
+        raster_image: { format: webp, quality: 85, width: 2000, height: 2000 }
+        svg: { optimize: true }
+
+site_url: __SITE_URL__
+display_url: __SITE_URL__
+

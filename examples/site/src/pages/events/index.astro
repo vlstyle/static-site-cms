@@ -1,7 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 import Base from '../../layouts/Base.astro';
-import { formatDate, isPublished } from '../../lib/published';
+import { formatDate, isPublished } from 'static-site-cms/published';
 
 const now = new Date();
 const all = (await getCollection('events'))

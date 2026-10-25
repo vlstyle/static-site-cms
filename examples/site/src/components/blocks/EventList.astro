@@ -1,6 +1,6 @@
 ---
 import { getCollection } from 'astro:content';
-import { formatDate, isPublished } from '../../lib/published';
+import { formatDate, isPublished } from 'static-site-cms/published';
 
 interface Props { heading?: string; limit: number }
 const { heading, limit } = Astro.props;

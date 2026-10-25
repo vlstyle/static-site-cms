@@ -20,7 +20,12 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 cpSync(`${adminDir}/index.html`, `${out}/index.html`);
 
-const config = readFileSync(`${adminDir}/config.template.yml`, 'utf8')
+if (!existsSync('cms/collections.yml')) {
+  console.error('cms/collections.yml が見つかりません');
+  process.exit(1);
+}
+
+const config = (readFileSync(`${adminDir}/config.base.yml`, 'utf8') + readFileSync('cms/collections.yml', 'utf8'))
   .replaceAll('__REPO__', repo)
   .replaceAll('__BRANCH__', branch)
   .replaceAll('__BASE_URL_LINE__', baseUrl ? `  base_url: ${baseUrl}\n` : '')

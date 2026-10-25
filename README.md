@@ -2,27 +2,33 @@
 
 Git をバックエンドにした広報向け静的サイト（お知らせ・イベント・ブロック型ランディングページ）の共通部品。[Astro](https://astro.build/) と [Sveltia CMS](https://sveltiacms.app/) を使う。コンテンツは別のリポジトリ（サイトリポジトリ）に置き、このリポジトリを依存として参照する。
 
-## 提供するもの
+## 役割分担
 
-| 種類 | 内容 |
+見た目とコンテンツモデルはサイトリポジトリが持ち、コアは基盤だけを提供する。
+
+| 置き場所 | 内容 |
 |---|---|
-| Astro integration | ルート（`/`・`/lp/[slug]`・`/news`・`/events` など）、ブロック、レイアウトを注入する |
-| コンテンツのスキーマ | `static-site-cms/content` の `collections`（news・events・lp） |
-| 管理画面 | Sveltia CMS のHTMLと `config.yml` のテンプレート。`cms-build-admin` が生成する |
-| CIチェック | `cms-path-guard`（ロールに応じた変更範囲の制限）・`cms-check-files`（ファイル名・画像の検査） |
-| 再利用 workflow | `site-ci.yml`・`site-preview.yml`・`site-deploy.yml` |
+| サイトリポジトリ | レイアウト・ブロックのコンポーネント・ページ・コンテンツのスキーマ（`src/`）、管理画面のコレクション定義（`cms/collections.yml`）、コンテンツ |
+| コア（このリポジトリ） | 公開判定などの共通関数（`static-site-cms/published`）、Astro integration、管理画面の共通設定と生成（`cms-build-admin`）、CIチェック（`cms-path-guard`・`cms-check-files`）、再利用 workflow、動くスターター（`examples/site`） |
+
+ブロックを追加・変更するときは、サイトリポジトリの3か所を揃える。
+
+1. `src/content.config.ts`（zodのスキーマ）
+2. `src/components/blocks/`（コンポーネント）
+3. `cms/collections.yml`（Sveltia CMSの入力フォーム）
 
 ## サイトリポジトリの作り方
 
-必要なファイルは次のとおり。動く例は [`examples/site`](examples/site)。
+[`examples/site`](examples/site) をコピーして始める。`cms.config.json` の `repo` を自分のリポジトリに変え、`package.json` の `static-site-cms` をコミット固定のgit依存にする。
 
 ```
 package.json            # astro と static-site-cms（コミット固定のgit依存）
 astro.config.mjs        # integrations: [staticSiteCms()]
-src/content.config.ts   # export { collections } from 'static-site-cms/content';
+cms.config.json         # { "repo": "owner/name", "branch": "main", "baseUrl": "OAuth中継のURL(任意)" }
+cms/collections.yml     # 管理画面のコレクション定義
+src/                    # content.config.ts・layouts・components・pages
 src/content/            # news / events / lp
 public/images/
-cms.config.json         # { "repo": "owner/name", "branch": "main", "baseUrl": "OAuth中継のURL(任意)" }
 .github/workflows/      # 再利用workflowの呼び出し
 ```
 
@@ -59,11 +65,11 @@ jobs:
 
 Rulesetの必須チェック名は、呼び出し側のジョブIDを前置した `ci / build`・`ci / path-guard`・`ci / file-check` になる。
 
-## ファイル名とスラッグ
+## 共通設定（`admin/config.base.yml`）
 
-- お知らせ・イベントは `日付-ランダムID` で自動採番する（ブランチ名・ファイル名に日本語が入らない）。
-- LPのスラッグはURLになるため、作成時に半角英小文字・数字・ハイフンで入力する。
+- ブランチ名・ファイル名を ASCII にするスラッグ設定（`encoding: ascii`）。
 - アップロード画像は `日付-ランダムID.webp` にリネームし、最大2000px・5MBまで。
+- コレクションごとのスラッグ（お知らせ・イベントは `日付-ランダムID`、LPは作成時に半角英小文字・数字・ハイフンで入力）は、サイトリポジトリの `cms/collections.yml` で指定する。
 
 ## 開発
 

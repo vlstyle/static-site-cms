@@ -1,7 +1,7 @@
 ---
 import { getCollection, render, type CollectionEntry } from 'astro:content';
 import Base from '../../layouts/Base.astro';
-import { formatDate, isPublished } from '../../lib/published';
+import { formatDate, isPublished } from 'static-site-cms/published';
 
 export async function getStaticPaths() {
   const events = (await getCollection('events')).filter((e) => isPublished(e));
