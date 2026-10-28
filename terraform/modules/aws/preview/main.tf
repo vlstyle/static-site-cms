@@ -89,6 +89,8 @@ resource "aws_ssm_parameter" "basic_auth" {
   value = "${local.basic_auth_user}:${random_password.basic_auth.result}"
 }
 
+data "aws_region" "current" {}
+
 data "aws_iam_policy_document" "basic_auth_reader" {
   count = var.basic_auth_reader_iam_group != null ? 1 : 0
 
@@ -106,9 +108,9 @@ data "aws_iam_policy_document" "basic_auth_reader" {
     resources = ["*"]
 
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "kms:ViaService"
-      values   = ["ssm.*.amazonaws.com"]
+      values   = ["ssm.${data.aws_region.current.id}.amazonaws.com"]
     }
   }
 }
