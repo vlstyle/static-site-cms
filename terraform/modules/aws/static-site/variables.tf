@@ -64,6 +64,12 @@ variable "allowed_ipv4_cidrs" {
   default     = []
 }
 
+variable "basic_auth_reader_policy_name" {
+  description = "Basic認証の資格情報を読むIAMポリシーの名前。nullなら <name>-basic-auth-reader。"
+  type        = string
+  default     = null
+}
+
 variable "oidc_provider_arn" {
   description = "GitHub ActionsのOIDCプロバイダのARN。"
   type        = string
