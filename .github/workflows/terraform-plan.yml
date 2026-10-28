@@ -1,0 +1,105 @@
+name: Terraform plan
+
+on:
+  workflow_call:
+    inputs:
+      role-arn:
+        description: plan用のIAMロールのARN（読み取り専用 + stateの読み書き）
+        type: string
+        required: true
+      state-bucket:
+        description: Terraform stateを置くS3バケット名
+        type: string
+        required: true
+      state-key:
+        type: string
+        default: static-site-cms/terraform.tfstate
+      aws-region:
+        type: string
+        default: ap-northeast-1
+      tfvars-file:
+        description: 呼び出し側リポジトリ内のtfvarsファイル
+        type: string
+        default: terraform/terraform.tfvars
+      terraform-version:
+        type: string
+        default: "1.16.4"
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    env:
+      STACK_DIR: node_modules/static-site-cms/terraform/stacks/aws
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ inputs.role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+          terraform_wrapper: false
+      - name: Terraform init
+        run: |
+          terraform -chdir="$STACK_DIR" init -input=false \
+            -backend-config="bucket=${{ inputs.state-bucket }}" \
+            -backend-config="key=${{ inputs.state-key }}" \
+            -backend-config="region=${{ inputs.aws-region }}" \
+            -backend-config="use_lockfile=true"
+      - name: Terraform validate
+        run: terraform -chdir="$STACK_DIR" validate -no-color
+      - name: Terraform plan
+        id: plan
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          terraform -chdir="$STACK_DIR" plan -input=false -no-color -lock-timeout=5m \
+            -var-file="$GITHUB_WORKSPACE/${{ inputs.tfvars-file }}" 2>&1 | tee "$RUNNER_TEMP/plan.txt"
+      - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- terraform-plan -->';
+            const max = 60000;
+            let output = fs.readFileSync(`${process.env.RUNNER_TEMP}/plan.txt`, 'utf8');
+            if (output.length > max) output = output.slice(0, max) + '\n... (truncated)';
+            const body = [
+              marker,
+              `#### Terraform plan: \`${process.env.PLAN_OUTCOME}\``,
+              '<details><summary>Plan output</summary>',
+              '',
+              '```',
+              output,
+              '```',
+              '',
+              '</details>',
+              '',
+              `*Workflow: \`${context.workflow}\`, run: ${context.runId}*`,
+            ].join('\n');
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.body && c.body.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+      - name: Fail if plan failed
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
