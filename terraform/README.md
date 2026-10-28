@@ -59,6 +59,8 @@ jobs:
     with:
       role-arn: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
       state-bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
+    secrets:
+      cms-basic-auth-password: ${{ secrets.CMS_BASIC_AUTH_PASSWORD }}
 ```
 
 ```yaml
@@ -78,7 +80,11 @@ jobs:
     with:
       role-arn: ${{ vars.TERRAFORM_APPLY_ROLE_ARN }}
       state-bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
+    secrets:
+      cms-basic-auth-password: ${{ secrets.CMS_BASIC_AUTH_PASSWORD }}
 ```
+
+`cms-basic-auth-password`（任意）を渡すと、`TF_VAR_cms_basic_auth_password` としてTerraformに渡り、CMSのBasic認証のパスワードになる。渡さなければ自動生成してSSMに保存される。値はGitHubのSecretに置き、リポジトリには書かない。
 
 | 入力 | 既定値 | 内容 |
 |---|---|---|
