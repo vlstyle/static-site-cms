@@ -25,6 +25,58 @@ preview = { bucket_name = "example-site-preview", domain = "preview.example.com"
 
 適用後、出力 `github_variables` の値をサイトリポジトリのActionsのリポジトリ変数に設定する。Basic認証の資格情報は出力 `basic_auth_ssm_parameters` のSSMパラメータ（SecureString、値は `ユーザー名:パスワード`）にある。
 
+## GitHub Actionsから実行する
+
+サイトリポジトリは `terraform/terraform.tfvars` を置き、再利用workflowを呼ぶ。Terraformのコードは `package.json` で固定したコアのバージョンのもの（`node_modules/static-site-cms/terraform/stacks/aws`）が使われるため、コアの参照を上げるとTerraformも同時に更新される。`uses:` のコミットハッシュも `package.json` と揃える。
+
+```yaml
+# .github/workflows/terraform-plan.yml
+name: Terraform plan
+on:
+  pull_request:
+    paths: ["terraform/**", "package.json", "package-lock.json"]
+jobs:
+  plan:
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    uses: vlstyle/static-site-cms/.github/workflows/terraform-plan.yml@<コミットハッシュ>
+    with:
+      role-arn: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
+      state-bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
+```
+
+```yaml
+# .github/workflows/terraform-apply.yml
+name: Terraform apply
+on:
+  push:
+    branches: [main]
+    paths: ["terraform/**", "package.json", "package-lock.json"]
+  workflow_dispatch: {}
+jobs:
+  apply:
+    permissions:
+      contents: read
+      id-token: write
+    uses: vlstyle/static-site-cms/.github/workflows/terraform-apply.yml@<コミットハッシュ>
+    with:
+      role-arn: ${{ vars.TERRAFORM_APPLY_ROLE_ARN }}
+      state-bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
+```
+
+| 入力 | 既定値 | 内容 |
+|---|---|---|
+| `role-arn` | （必須） | plan用（読み取り専用 + stateの読み書き）・apply用のIAMロール |
+| `state-bucket` | （必須） | Terraform stateを置くS3バケット |
+| `state-key` | `static-site-cms/terraform.tfstate` | stateのキー |
+| `aws-region` | `ap-northeast-1` | メインのリージョン |
+| `tfvars-file` | `terraform/terraform.tfvars` | 呼び出し側リポジトリ内のtfvars |
+| `terraform-version` | `1.16.4` | |
+
+planの結果はPRのコメントに投稿され（同じPRでは更新される）、applyは `main` へのpushで実行される。
+
 ## 前提と制限
 
 - Route 53のホストゾーンがあること。ホストゾーンが別サービスにある場合は未対応。
