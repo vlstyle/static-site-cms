@@ -116,7 +116,7 @@ data "aws_iam_policy_document" "basic_auth_reader" {
 resource "aws_iam_policy" "basic_auth_reader" {
   count = var.basic_auth_reader_iam_group != null ? 1 : 0
 
-  name   = "${var.name}-basic-auth-reader"
+  name   = coalesce(var.basic_auth_reader_policy_name, "${var.name}-basic-auth-reader")
   policy = data.aws_iam_policy_document.basic_auth_reader[0].json
 }
 
@@ -131,7 +131,7 @@ resource "aws_cloudfront_function" "this" {
   name    = var.name
   runtime = "cloudfront-js-2.0"
   publish = true
-  comment = "Basic auth and host-to-prefix rewrite for PR previews"
+  comment = "Basic auth and host-to-prefix rewrite for CMS PR previews"
 
   code = templatefile("${path.module}/function.js.tftpl", {
     basic_auth   = base64encode("${local.basic_auth_user}:${random_password.basic_auth.result}")
@@ -196,7 +196,7 @@ resource "aws_cloudfront_response_headers_policy" "this" {
 resource "aws_cloudfront_distribution" "this" {
   enabled         = true
   is_ipv6_enabled = true
-  comment         = "PR previews"
+  comment         = "CMS PR previews"
   aliases         = [local.wildcard_domain]
   price_class     = var.price_class
   http_version    = "http2and3"

@@ -101,7 +101,7 @@ data "aws_iam_policy_document" "basic_auth_reader" {
 resource "aws_iam_policy" "basic_auth_reader" {
   count = var.basic_auth_enabled && var.basic_auth_reader_iam_group != null ? 1 : 0
 
-  name   = "${var.name}-basic-auth-reader"
+  name   = coalesce(var.basic_auth_reader_policy_name, "${var.name}-basic-auth-reader")
   policy = data.aws_iam_policy_document.basic_auth_reader[0].json
 }
 
