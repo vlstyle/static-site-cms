@@ -1,4 +1,5 @@
 node_modules/
 dist/
+dist-base/
 dist-admin/
 .astro/

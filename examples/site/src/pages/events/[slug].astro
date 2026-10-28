@@ -1,5 +1,6 @@
 ---
-import { getCollection, render, type CollectionEntry } from 'astro:content';
+import { withBase, withBaseInHtml } from 'static-site-cms/url';
+import { getCollection, type CollectionEntry } from 'astro:content';
 import Base from '../../layouts/Base.astro';
 import { formatDate, isPublished } from 'static-site-cms/published';
 
@@ -9,7 +10,7 @@ export async function getStaticPaths() {
 }
 
 const { entry } = Astro.props as { entry: CollectionEntry<'events'> };
-const { Content } = await render(entry);
+const html = withBaseInHtml(entry.rendered?.html ?? '');
 ---
 <Base title={entry.data.title}>
   <article>
@@ -19,8 +20,8 @@ const { Content } = await render(entry);
       {entry.data.endDate && <> 〜 <time>{formatDate(entry.data.endDate)}</time></>}
       {entry.data.venue && <> / {entry.data.venue}</>}
     </p>
-    {entry.data.image && <img src={entry.data.image} alt="" style="max-width:100%" />}
-    <Content />
-    {entry.data.applyUrl && <p><a class="btn" href={entry.data.applyUrl}>申し込む</a></p>}
+    {entry.data.image && <img src={withBase(entry.data.image)} alt="" style="max-width:100%" />}
+    <Fragment set:html={html} />
+    {entry.data.applyUrl && <p><a class="btn" href={withBase(entry.data.applyUrl)}>申し込む</a></p>}
   </article>
 </Base>

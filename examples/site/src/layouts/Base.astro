@@ -3,6 +3,7 @@ interface Props {
   title: string;
   description?: string;
 }
+import { withBase } from 'static-site-cms/url';
 import { isPreview } from 'static-site-cms/published';
 
 const { title, description } = Astro.props;
@@ -30,9 +31,9 @@ const { title, description } = Astro.props;
   </head>
   <body>
     <header class="site">
-      <a href="/">Home</a>
-      <a href="/news/">お知らせ</a>
-      <a href="/events/">イベント</a>
+      <a href={withBase('/')}>Home</a>
+      <a href={withBase('/news/')}>お知らせ</a>
+      <a href={withBase('/events/')}>イベント</a>
     </header>
     <main><slot /></main>
     <footer>© Static Site CMS PoC</footer>

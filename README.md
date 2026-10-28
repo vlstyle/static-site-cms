@@ -65,6 +65,14 @@ jobs:
 
 Rulesetの必須チェック名は、呼び出し側のジョブIDを前置した `ci / build`・`ci / path-guard`・`ci / file-check` になる。
 
+## サブパスで配信する（`base`）
+
+`BASE_PATH` 環境変数（例: `/preview/pr-12`）で、サイトをサブパスの配下に置ける（スターターの `astro.config.mjs` が Astro の `base` に渡す）。
+
+- テンプレートでは、内部リンクと画像のパスを `withBase()`（`static-site-cms/url`）に通す。外部URL・`#` から始まるリンクはそのまま返る。
+- CMSが保存する本文（Markdown）の `/images/...` や `/events/` のような絶対パスは、描画済みHTMLを `withBaseInHtml()` に通して補正する（スターターの `news/[slug].astro` など）。
+- `cms-check-links <出力ディレクトリ>` が、ビルド結果の内部リンクが `BASE_PATH` で始まり、リンク先が存在するかを検査する。
+
 ## 共通設定（`admin/config.base.yml`）
 
 - ブランチ名・ファイル名を ASCII にするスラッグ設定（`encoding: ascii`）。

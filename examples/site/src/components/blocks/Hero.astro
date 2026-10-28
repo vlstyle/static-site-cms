@@ -1,12 +1,13 @@
 ---
+import { withBase } from 'static-site-cms/url';
 interface Props { heading: string; subheading?: string; image?: string; ctaLabel?: string; ctaUrl?: string }
 const { heading, subheading, image, ctaLabel, ctaUrl } = Astro.props;
 ---
 <section class="hero">
-  {image && <img src={image} alt="" />}
+  {image && <img src={withBase(image)} alt="" />}
   <h1>{heading}</h1>
   {subheading && <p>{subheading}</p>}
-  {ctaLabel && ctaUrl && <a class="btn" href={ctaUrl}>{ctaLabel}</a>}
+  {ctaLabel && ctaUrl && <a class="btn" href={withBase(ctaUrl)}>{ctaLabel}</a>}
 </section>
 <style>
   .hero { text-align: center; padding: 56px 0; }

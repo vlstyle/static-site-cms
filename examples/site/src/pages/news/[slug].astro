@@ -1,5 +1,6 @@
 ---
-import { getCollection, render, type CollectionEntry } from 'astro:content';
+import { withBase, withBaseInHtml } from 'static-site-cms/url';
+import { getCollection, type CollectionEntry } from 'astro:content';
 import Base from '../../layouts/Base.astro';
 import { formatDate, isPublished } from 'static-site-cms/published';
 
@@ -9,13 +10,13 @@ export async function getStaticPaths() {
 }
 
 const { entry } = Astro.props as { entry: CollectionEntry<'news'> };
-const { Content } = await render(entry);
+const html = withBaseInHtml(entry.rendered?.html ?? '');
 ---
 <Base title={entry.data.title}>
   <article>
     <h1>{entry.data.title}</h1>
     <time>{formatDate(entry.data.date)}</time>
-    {entry.data.image && <img src={entry.data.image} alt="" style="max-width:100%" />}
-    <Content />
+    {entry.data.image && <img src={withBase(entry.data.image)} alt="" style="max-width:100%" />}
+    <Fragment set:html={html} />
   </article>
 </Base>
