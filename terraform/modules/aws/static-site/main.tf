@@ -95,7 +95,7 @@ data "aws_iam_policy_document" "basic_auth_reader" {
     condition {
       test     = "StringEquals"
       variable = "kms:ViaService"
-      values   = ["ssm.${data.aws_region.current.id}.amazonaws.com"]
+      values   = ["ssm.${data.aws_region.current.region}.amazonaws.com"]
     }
   }
 }
