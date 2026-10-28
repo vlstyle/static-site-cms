@@ -6,9 +6,14 @@ on:
       preview-bucket:
         type: string
         required: true
-      preview-domain:
+      cms-domain:
+        description: "cms-hostingモジュールのドメイン。指定すると https://<cms-domain>/preview/pr-<番号>/ に配信する（サイトのテンプレートがbase対応であること）"
         type: string
-        required: true
+        default: ""
+      preview-domain:
+        description: "ホスト名形式のプレビューのドメイン。https://pr-<番号>.<preview-domain>/ に配信する（cms-domainが空のとき）"
+        type: string
+        default: ""
       aws-region:
         type: string
         default: ap-northeast-1
@@ -25,9 +30,28 @@ jobs:
   deploy:
     if: github.event.action != 'closed' && inputs.role-arn != ''
     runs-on: ubuntu-latest
-    env:
-      PREFIX: pr-${{ github.event.pull_request.number }}
     steps:
+      - name: Resolve preview location
+        id: loc
+        env:
+          CMS_DOMAIN: ${{ inputs.cms-domain }}
+          PREVIEW_DOMAIN: ${{ inputs.preview-domain }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -n "$CMS_DOMAIN" ]; then
+            echo "prefix=preview/pr-${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "base_path=/preview/pr-${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "site_url=https://${CMS_DOMAIN}" >> "$GITHUB_OUTPUT"
+            echo "url=https://${CMS_DOMAIN}/preview/pr-${PR_NUMBER}/" >> "$GITHUB_OUTPUT"
+          elif [ -n "$PREVIEW_DOMAIN" ]; then
+            echo "prefix=pr-${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "base_path=" >> "$GITHUB_OUTPUT"
+            echo "site_url=https://pr-${PR_NUMBER}.${PREVIEW_DOMAIN}" >> "$GITHUB_OUTPUT"
+            echo "url=https://pr-${PR_NUMBER}.${PREVIEW_DOMAIN}/" >> "$GITHUB_OUTPUT"
+          else
+            echo "cms-domain か preview-domain のどちらかを指定してください" >&2
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -37,19 +61,20 @@ jobs:
       - run: npm run build
         env:
           PREVIEW: "1"
-          SITE_URL: https://${{ env.PREFIX }}.${{ inputs.preview-domain }}
+          SITE_URL: ${{ steps.loc.outputs.site_url }}
+          BASE_PATH: ${{ steps.loc.outputs.base_path }}
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ inputs.role-arn }}
           aws-region: ${{ inputs.aws-region }}
-      - run: aws s3 sync dist "s3://${{ inputs.preview-bucket }}/${PREFIX}/" --delete
+      - run: aws s3 sync dist "s3://${{ inputs.preview-bucket }}/${{ steps.loc.outputs.prefix }}/" --delete
       - run: |
-          gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body "プレビュー: https://${PREFIX}.${PREVIEW_DOMAIN}/ （最新コミット: ${SHA::7}、閲覧にはBasic認証が必要です）"
+          gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body "プレビュー: ${URL} （最新コミット: ${SHA::7}、閲覧にはBasic認証が必要です）"
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
-          PREVIEW_DOMAIN: ${{ inputs.preview-domain }}
+          URL: ${{ steps.loc.outputs.url }}
 
   cleanup:
     if: github.event.action == 'closed' && inputs.role-arn != ''
@@ -59,4 +84,15 @@ jobs:
         with:
           role-to-assume: ${{ inputs.role-arn }}
           aws-region: ${{ inputs.aws-region }}
-      - run: aws s3 rm "s3://${{ inputs.preview-bucket }}/pr-${{ github.event.pull_request.number }}/" --recursive
+      - name: Delete preview
+        env:
+          CMS_DOMAIN: ${{ inputs.cms-domain }}
+          BUCKET: ${{ inputs.preview-bucket }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -n "$CMS_DOMAIN" ]; then
+            prefix="preview/pr-${PR_NUMBER}"
+          else
+            prefix="pr-${PR_NUMBER}"
+          fi
+          aws s3 rm "s3://${BUCKET}/${prefix}/" --recursive

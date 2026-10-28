@@ -21,6 +21,13 @@ on:
       cloudfront-distribution-id:
         type: string
         default: ""
+      admin-s3-bucket:
+        description: "管理画面をS3のadmin/へ配信する（cms-hostingモジュール）。指定したときだけ実行する"
+        type: string
+        default: ""
+      admin-role-arn:
+        type: string
+        default: ""
       admin-rsync-target:
         type: string
         default: ""
@@ -81,3 +88,23 @@ jobs:
         env:
           SITE_URL: ${{ inputs.site-url }}
       - run: rsync -a --delete dist-admin/ "${{ inputs.admin-rsync-target }}"
+
+  deploy-admin-s3:
+    if: inputs.admin-s3-bucket != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:admin
+        env:
+          SITE_URL: ${{ inputs.site-url }}
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ inputs.admin-role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+      - run: aws s3 sync dist-admin "s3://${{ inputs.admin-s3-bucket }}/admin/" --delete
+      - run: aws s3 cp dist-admin/config.yml "s3://${{ inputs.admin-s3-bucket }}/admin/config.yml" --content-type "text/yaml; charset=utf-8"
