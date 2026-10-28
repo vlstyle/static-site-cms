@@ -28,14 +28,14 @@ module "cms" {
     aws.us_east_1 = aws.us_east_1
   }
 
-  name                        = "${var.name}-cms"
+  name                        = var.name
   bucket_name                 = var.cms.bucket_name
   domain                      = var.cms.domain
   hosted_zone_id              = var.hosted_zone_id
   preview_expire_days         = var.cms.preview_expire_days
   basic_auth_enabled          = var.cms.basic_auth_enabled
   basic_auth_user             = var.cms.basic_auth_user
-  basic_auth_password         = var.cms_basic_auth_password
+  basic_auth_password         = var.cms_basic_auth_password == "" ? null : var.cms_basic_auth_password
   basic_auth_reader_iam_group = var.basic_auth_reader_iam_group
   allowed_ipv4_cidrs          = var.cms.allowed_ipv4_cidrs
   oidc_provider_arn           = data.aws_iam_openid_connect_provider.github.arn

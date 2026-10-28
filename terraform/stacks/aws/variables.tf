@@ -5,7 +5,7 @@ variable "region" {
 }
 
 variable "name" {
-  description = "リソース名の接頭辞。IAMロール名などが <name>-site / <name>-admin / <name>-preview になる。"
+  description = "リソース名の接頭辞。IAMロール名・SSMパラメータ名などの接頭辞（本番サイトは <name>-site、CMSは <name> になる）。"
   type        = string
   default     = "cms"
 }
