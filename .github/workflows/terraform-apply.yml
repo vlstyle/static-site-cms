@@ -1,0 +1,64 @@
+name: Terraform apply
+
+on:
+  workflow_call:
+    inputs:
+      role-arn:
+        description: apply用のIAMロールのARN
+        type: string
+        required: true
+      state-bucket:
+        description: Terraform stateを置くS3バケット名
+        type: string
+        required: true
+      state-key:
+        type: string
+        default: static-site-cms/terraform.tfstate
+      aws-region:
+        type: string
+        default: ap-northeast-1
+      tfvars-file:
+        description: 呼び出し側リポジトリ内のtfvarsファイル
+        type: string
+        default: terraform/terraform.tfvars
+      terraform-version:
+        type: string
+        default: "1.16.4"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    env:
+      STACK_DIR: node_modules/static-site-cms/terraform/stacks/aws
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ inputs.role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+          terraform_wrapper: false
+      - name: Terraform init
+        run: |
+          terraform -chdir="$STACK_DIR" init -input=false \
+            -backend-config="bucket=${{ inputs.state-bucket }}" \
+            -backend-config="key=${{ inputs.state-key }}" \
+            -backend-config="region=${{ inputs.aws-region }}" \
+            -backend-config="use_lockfile=true"
+      - name: Terraform apply
+        run: |
+          terraform -chdir="$STACK_DIR" apply -input=false -auto-approve -no-color -lock-timeout=5m \
+            -var-file="$GITHUB_WORKSPACE/${{ inputs.tfvars-file }}"
+      - name: Show outputs
+        run: terraform -chdir="$STACK_DIR" output -no-color github_variables
