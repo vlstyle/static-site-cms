@@ -17,7 +17,8 @@
   "files": [
     "src",
     "admin",
-    "scripts"
+    "scripts",
+    "terraform"
   ],
   "peerDependencies": {
     "astro": "^7.0.0"
