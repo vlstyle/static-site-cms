@@ -1,4 +1,5 @@
 ---
+import { withBase } from 'static-site-cms/url';
 import { getCollection } from 'astro:content';
 import Base from '../../layouts/Base.astro';
 import { formatDate, isPublished } from 'static-site-cms/published';
@@ -15,7 +16,7 @@ const past = all.filter((e) => !isUpcoming(e)).reverse();
   <h1>イベント</h1>
   <h2>開催予定</h2>
   {upcoming.length === 0 && <p>現在予定されているイベントはありません。</p>}
-  <ul>{upcoming.map((e) => <li>{formatDate(e.data.startDate)} <a href={`/events/${e.id}/`}>{e.data.title}</a></li>)}</ul>
+  <ul>{upcoming.map((e) => <li>{formatDate(e.data.startDate)} <a href={withBase(`/events/${e.id}/`)}>{e.data.title}</a></li>)}</ul>
   <h2>終了したイベント</h2>
-  <ul>{past.map((e) => <li>{formatDate(e.data.startDate)} <a href={`/events/${e.id}/`}>{e.data.title}</a></li>)}</ul>
+  <ul>{past.map((e) => <li>{formatDate(e.data.startDate)} <a href={withBase(`/events/${e.id}/`)}>{e.data.title}</a></li>)}</ul>
 </Base>

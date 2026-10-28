@@ -6,6 +6,7 @@ blocks:
     subheading: 今だけの特別キャンペーンを実施中です
     ctaLabel: 詳しく見る
     ctaUrl: "#features"
+    image: /images/sample.svg
   - type: features
     heading: 3つの特長
     items:
@@ -21,4 +22,4 @@ blocks:
   - type: cta
     heading: まずはお気軽にご相談ください
     label: 申し込む
-    url: https://example.com/apply
+    url: /events/

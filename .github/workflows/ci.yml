@@ -22,6 +22,11 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run build:admin
+      - run: npx cms-check-links dist
+      - name: Build under a sub path and check links
+        run: |
+          BASE_PATH=/preview/pr-12 npx astro build --outDir dist-base
+          BASE_PATH=/preview/pr-12 npx cms-check-links dist-base
       - name: Validate admin config against the Sveltia schema
         working-directory: .
         run: |

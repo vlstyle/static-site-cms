@@ -6,13 +6,15 @@
   "type": "module",
   "exports": {
     ".": "./src/integration.mjs",
-    "./published": "./src/lib/published.ts"
+    "./published": "./src/lib/published.ts",
+    "./url": "./src/lib/url.ts"
   },
   "bin": {
     "cms-build-admin": "scripts/build-admin.mjs",
     "cms-serve-admin": "scripts/serve-admin.mjs",
     "cms-check-files": "scripts/check-files.mjs",
-    "cms-path-guard": "scripts/path-guard.mjs"
+    "cms-path-guard": "scripts/path-guard.mjs",
+    "cms-check-links": "scripts/check-links.mjs"
   },
   "files": [
     "src",
