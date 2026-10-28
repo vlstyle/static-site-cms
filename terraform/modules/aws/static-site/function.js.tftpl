@@ -1,0 +1,47 @@
+%{ if length(allowed_cidrs) > 0 ~}
+function toInt(ip) {
+  var p = ip.split('.');
+  return (((+p[0]) * 256 + (+p[1])) * 256 + (+p[2])) * 256 + (+p[3]);
+}
+
+function inCidr(ip, cidr) {
+  var parts = cidr.split('/');
+  var size = Math.pow(2, 32 - (+parts[1]));
+  var base = Math.floor(toInt(parts[0]) / size) * size;
+  var value = toInt(ip);
+  return value >= base && value < base + size;
+}
+
+var allowedCidrs = ${jsonencode(allowed_cidrs)};
+
+%{ endif ~}
+function handler(event) {
+  var request = event.request;
+%{ if length(allowed_cidrs) > 0 ~}
+
+  var ip = event.viewer.ip;
+  var allowed = ip.indexOf(':') === -1 && allowedCidrs.some(function (cidr) { return inCidr(ip, cidr); });
+  if (!allowed) {
+    return { statusCode: 403, statusDescription: 'Forbidden' };
+  }
+%{ endif ~}
+%{ if basic_auth != "" ~}
+
+  var headers = request.headers;
+  if (!headers.authorization || headers.authorization.value !== 'Basic ${basic_auth}') {
+    return {
+      statusCode: 401,
+      statusDescription: 'Unauthorized',
+      headers: { 'www-authenticate': { value: 'Basic realm="restricted"' } }
+    };
+  }
+%{ endif ~}
+
+  var uri = request.uri;
+  if (uri.endsWith('/')) {
+    request.uri = uri + 'index.html';
+  } else if (uri.indexOf('.', uri.lastIndexOf('/')) === -1) {
+    request.uri = uri + '/index.html';
+  }
+  return request;
+}
