@@ -8,9 +8,12 @@
 |---|---|
 | `modules/aws/static-site` | S3 + CloudFront + ACM + Route 53 + デプロイ用IAMロール。本番サイトと管理画面の両方に使う。Basic認証・IPv4制限・noindexはオプション |
 | `modules/aws/preview` | PRごとのプレビュー（`pr-<番号>.<domain>`）。ワイルドカード証明書、Basic認証（常に有効）、30日で自動削除 |
+| `bootstrap/aws` | 初回だけ手元で適用するルートモジュール。OIDCプロバイダ、plan/apply用ロール、stateバケット |
 | `stacks/aws` | 上のモジュールを束ねたルートモジュール。変数は `site`・`admin`・`preview`（`null` なら作らない） |
 
 ## 使い方
+
+最初に、[`bootstrap/aws`](bootstrap/aws/README.md)（OIDCプロバイダ・plan/applyロール・stateバケット）を1回だけ手元で適用する。
 
 `stacks/aws/example.tfvars` を参考に `terraform.tfvars` を書く。
 
