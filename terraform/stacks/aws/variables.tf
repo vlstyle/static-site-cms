@@ -5,7 +5,7 @@ variable "region" {
 }
 
 variable "name" {
-  description = "リソース名の接頭辞。IAMロール名などが <name>-site / <name>-admin / <name>-preview になる。"
+  description = "リソース名の接頭辞。本番サイトのリソースは <name>-site、CMS（管理画面とプレビュー）のリソースは <name> になる。"
   type        = string
   default     = "cms"
 }
@@ -41,23 +41,22 @@ variable "site" {
   default = null
 }
 
-variable "admin" {
-  description = "管理画面（index.html と config.yml）の配信。nullなら作らない。"
+variable "cms" {
+  description = "CMSの管理画面（/admin/）とPRのプレビュー（/preview/pr-<番号>/）を1つのドメインで配信する。nullなら作らない。"
   type = object({
-    bucket_name        = string
-    domain             = string
-    basic_auth_enabled = optional(bool, true)
-    allowed_ipv4_cidrs = optional(list(string), [])
+    bucket_name         = string
+    domain              = string
+    basic_auth_enabled  = optional(bool, true)
+    basic_auth_user     = optional(string, "cms")
+    allowed_ipv4_cidrs  = optional(list(string), [])
+    preview_expire_days = optional(number, 30)
   })
   default = null
 }
 
-variable "preview" {
-  description = "PRごとのプレビュー（pr-<番号>.<domain>）。nullなら作らない。"
-  type = object({
-    bucket_name = string
-    domain      = string
-    expire_days = optional(number, 30)
-  })
-  default = null
+variable "cms_basic_auth_password" {
+  description = "CMSのBasic認証のパスワード。nullなら自動生成してSSMに保存する。渡す場合はTF_VAR_cms_basic_auth_passwordで渡し、リポジトリには書かない。"
+  type        = string
+  default     = null
+  sensitive   = true
 }

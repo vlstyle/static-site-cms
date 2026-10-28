@@ -8,21 +8,16 @@ output "github_variables" {
       S3_BUCKET                  = module.site[0].bucket
       CLOUDFRONT_DISTRIBUTION_ID = module.site[0].distribution_id
     },
-    var.preview == null ? {} : {
-      PREVIEW_ROLE_ARN = module.preview[0].publisher_role_arn
-    },
-    var.admin == null ? {} : {
-      ADMIN_S3_BUCKET                  = module.admin[0].bucket
-      ADMIN_CLOUDFRONT_DISTRIBUTION_ID = module.admin[0].distribution_id
-      ADMIN_AWS_DEPLOY_ROLE_ARN        = module.admin[0].deploy_role_arn
+    var.cms == null ? {} : {
+      CMS_DOMAIN                = var.cms.domain
+      CMS_S3_BUCKET             = module.cms[0].bucket
+      CMS_ADMIN_DEPLOY_ROLE_ARN = module.cms[0].admin_deploy_role_arn
+      CMS_PREVIEW_ROLE_ARN      = module.cms[0].preview_publisher_role_arn
     },
   )
 }
 
 output "basic_auth_ssm_parameters" {
-  description = "Basic認証の資格情報が入っているSSMパラメータ名。"
-  value = compact([
-    var.admin == null ? null : module.admin[0].basic_auth_ssm_parameter,
-    var.preview == null ? null : module.preview[0].basic_auth_ssm_parameter,
-  ])
+  description = "Basic認証の資格情報（自動生成した場合）が入っているSSMパラメータ名。"
+  value       = compact([var.cms == null ? null : module.cms[0].basic_auth_ssm_parameter])
 }

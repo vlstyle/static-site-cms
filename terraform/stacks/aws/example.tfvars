@@ -6,13 +6,8 @@ site = {
   domains     = ["www.example.com"]
 }
 
-admin = {
-  bucket_name        = "example-site-admin"
+cms = {
+  bucket_name        = "example-site-cms"
   domain             = "cms.example.com"
   allowed_ipv4_cidrs = ["203.0.113.0/24"]
-}
-
-preview = {
-  bucket_name = "example-site-preview"
-  domain      = "preview.example.com"
 }

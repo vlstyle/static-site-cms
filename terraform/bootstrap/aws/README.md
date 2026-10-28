@@ -30,7 +30,7 @@ TerraformをGitHub Actionsから動かすために必要な、次のリソース
 
 4. サイトリポジトリに `terraform/terraform.tfvars` と、plan・applyの呼び出しworkflowを置く（[../../README.md](../../README.md) の「GitHub Actionsから実行する」）。PRにplanが投稿され、`main` へのマージでapplyされる。
 
-5. applyの出力 `github_variables` を、サイトリポジトリのActionsのリポジトリ変数に設定する（`DEPLOY_TARGET` `AWS_DEPLOY_ROLE_ARN` `S3_BUCKET` `CLOUDFRONT_DISTRIBUTION_ID` `PREVIEW_ROLE_ARN` など）。
+5. applyの出力 `github_variables` を、サイトリポジトリのActionsのリポジトリ変数に設定する（`DEPLOY_TARGET` `AWS_DEPLOY_ROLE_ARN` `S3_BUCKET` `CLOUDFRONT_DISTRIBUTION_ID` `CMS_DOMAIN` `CMS_S3_BUCKET` `CMS_ADMIN_DEPLOY_ROLE_ARN` `CMS_PREVIEW_ROLE_ARN` など）。
 
 ## 注意
 
