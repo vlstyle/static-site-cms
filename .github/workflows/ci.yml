@@ -54,3 +54,7 @@ jobs:
         working-directory: terraform/stacks/aws
       - run: terraform validate -no-color
         working-directory: terraform/stacks/aws
+      - run: terraform init -backend=false -input=false
+        working-directory: terraform/bootstrap/aws
+      - run: terraform validate -no-color
+        working-directory: terraform/bootstrap/aws
