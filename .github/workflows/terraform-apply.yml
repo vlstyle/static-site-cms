@@ -24,6 +24,10 @@ on:
       terraform-version:
         type: string
         default: "1.16.4"
+    secrets:
+      cms-basic-auth-password:
+        description: CMSのBasic認証のパスワード（TF_VAR_cms_basic_auth_passwordとして渡す）。未指定なら自動生成される
+        required: false
 
 permissions:
   contents: read
@@ -49,6 +53,17 @@ jobs:
         with:
           terraform_version: ${{ inputs.terraform-version }}
           terraform_wrapper: false
+      - name: Pass the CMS Basic auth password
+        env:
+          CMS_BASIC_AUTH_PASSWORD: ${{ secrets.cms-basic-auth-password }}
+        run: |
+          if [ -n "$CMS_BASIC_AUTH_PASSWORD" ]; then
+            {
+              echo "TF_VAR_cms_basic_auth_password<<__CMS_PW__"
+              printf '%s\n' "$CMS_BASIC_AUTH_PASSWORD"
+              echo "__CMS_PW__"
+            } >> "$GITHUB_ENV"
+          fi
       - name: Terraform init
         run: |
           terraform -chdir="$STACK_DIR" init -input=false \
