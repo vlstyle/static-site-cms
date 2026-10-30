@@ -38,7 +38,7 @@ function handler(event) {
     return { statusCode: 403, statusDescription: 'Forbidden' };
   }
 %{ endif ~}
-%{ if basic_auth != "" ~}
+%{ if basic_auth_hash != "" ~}
 
   var authorization = request.headers.authorization;
   if (!authorization || !authorized(authorization.value)) {
