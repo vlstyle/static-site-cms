@@ -1,5 +1,13 @@
 output "bucket" {
-  value = aws_s3_bucket.this.bucket
+  value = data.aws_s3_bucket.this.bucket
+}
+
+output "prefix" {
+  value = var.prefix
+}
+
+output "distribution_arn" {
+  value = aws_cloudfront_distribution.this.arn
 }
 
 output "distribution_id" {

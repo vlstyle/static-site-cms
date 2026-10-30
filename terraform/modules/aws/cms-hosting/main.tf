@@ -2,88 +2,8 @@ locals {
   basic_auth_hash = var.basic_auth_enabled ? nonsensitive(sha256("${random_id.salt.hex}${base64encode("${var.basic_auth_user}:${var.basic_auth_password}")}")) : ""
 }
 
-resource "aws_s3_bucket" "this" {
+data "aws_s3_bucket" "this" {
   bucket = var.bucket_name
-}
-
-resource "aws_s3_bucket_public_access_block" "this" {
-  bucket = aws_s3_bucket.this.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_ownership_controls" "this" {
-  bucket = aws_s3_bucket.this.id
-
-  rule {
-    object_ownership = "BucketOwnerEnforced"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
-  bucket = aws_s3_bucket.this.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "this" {
-  bucket = aws_s3_bucket.this.id
-
-  rule {
-    id     = "expire-previews"
-    status = "Enabled"
-
-    filter {
-      prefix = "preview/"
-    }
-
-    expiration {
-      days = var.preview_expire_days
-    }
-  }
-
-  rule {
-    id     = "abort-incomplete-multipart-uploads"
-    status = "Enabled"
-
-    filter {}
-
-    abort_incomplete_multipart_upload {
-      days_after_initiation = 1
-    }
-  }
-}
-
-data "aws_iam_policy_document" "bucket" {
-  statement {
-    sid       = "AllowCloudFrontRead"
-    effect    = "Allow"
-    actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.this.arn}/*"]
-
-    principals {
-      type        = "Service"
-      identifiers = ["cloudfront.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "AWS:SourceArn"
-      values   = [aws_cloudfront_distribution.this.arn]
-    }
-  }
-}
-
-resource "aws_s3_bucket_policy" "this" {
-  bucket = aws_s3_bucket.this.id
-  policy = data.aws_iam_policy_document.bucket.json
 }
 
 resource "random_id" "salt" {
@@ -166,7 +86,8 @@ resource "aws_cloudfront_distribution" "this" {
   http_version    = "http2and3"
 
   origin {
-    domain_name              = aws_s3_bucket.this.bucket_regional_domain_name
+    domain_name              = data.aws_s3_bucket.this.bucket_regional_domain_name
+    origin_path              = "/${var.prefix}"
     origin_id                = "s3"
     origin_access_control_id = aws_cloudfront_origin_access_control.this.id
   }
@@ -263,12 +184,12 @@ data "aws_iam_policy_document" "admin" {
     sid       = "ListAdminPrefix"
     effect    = "Allow"
     actions   = ["s3:ListBucket"]
-    resources = [aws_s3_bucket.this.arn]
+    resources = [data.aws_s3_bucket.this.arn]
 
     condition {
       test     = "StringLike"
       variable = "s3:prefix"
-      values   = ["admin", "admin/*"]
+      values   = ["${var.prefix}/admin", "${var.prefix}/admin/*"]
     }
   }
 
@@ -276,7 +197,7 @@ data "aws_iam_policy_document" "admin" {
     sid       = "WriteAdminObjects"
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    resources = ["${aws_s3_bucket.this.arn}/admin/*"]
+    resources = ["${data.aws_s3_bucket.this.arn}/${var.prefix}/admin/*"]
   }
 }
 
@@ -328,12 +249,12 @@ data "aws_iam_policy_document" "preview" {
     sid       = "ListPreviewPrefix"
     effect    = "Allow"
     actions   = ["s3:ListBucket"]
-    resources = [aws_s3_bucket.this.arn]
+    resources = [data.aws_s3_bucket.this.arn]
 
     condition {
       test     = "StringLike"
       variable = "s3:prefix"
-      values   = ["preview/pr-*"]
+      values   = ["${var.prefix}/preview/pr-*"]
     }
   }
 
@@ -341,7 +262,7 @@ data "aws_iam_policy_document" "preview" {
     sid       = "WritePreviewObjects"
     effect    = "Allow"
     actions   = ["s3:PutObject", "s3:DeleteObject"]
-    resources = ["${aws_s3_bucket.this.arn}/preview/pr-*"]
+    resources = ["${data.aws_s3_bucket.this.arn}/${var.prefix}/preview/pr-*"]
   }
 }
 

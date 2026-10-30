@@ -1,62 +1,14 @@
 locals {
-  primary_domain = var.domains[0]
-  basic_auth     = var.basic_auth_enabled ? base64encode("${var.name}:${var.basic_auth_password}") : ""
+  primary_domain  = var.domains[0]
+  basic_auth_hash = var.basic_auth_enabled ? nonsensitive(sha256("${random_id.salt.hex}${base64encode("${var.basic_auth_user}:${var.basic_auth_password}")}")) : ""
 }
 
-resource "aws_s3_bucket" "this" {
+resource "random_id" "salt" {
+  byte_length = 16
+}
+
+data "aws_s3_bucket" "this" {
   bucket = var.bucket_name
-}
-
-resource "aws_s3_bucket_public_access_block" "this" {
-  bucket = aws_s3_bucket.this.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_ownership_controls" "this" {
-  bucket = aws_s3_bucket.this.id
-
-  rule {
-    object_ownership = "BucketOwnerEnforced"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
-  bucket = aws_s3_bucket.this.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-data "aws_iam_policy_document" "bucket" {
-  statement {
-    sid       = "AllowCloudFrontRead"
-    effect    = "Allow"
-    actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.this.arn}/*"]
-
-    principals {
-      type        = "Service"
-      identifiers = ["cloudfront.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "AWS:SourceArn"
-      values   = [aws_cloudfront_distribution.this.arn]
-    }
-  }
-}
-
-resource "aws_s3_bucket_policy" "this" {
-  bucket = aws_s3_bucket.this.id
-  policy = data.aws_iam_policy_document.bucket.json
 }
 
 resource "aws_cloudfront_function" "this" {
@@ -66,8 +18,9 @@ resource "aws_cloudfront_function" "this" {
   comment = "Directory index${var.basic_auth_enabled ? ", basic auth" : ""}${length(var.allowed_ipv4_cidrs) > 0 ? ", IP restriction" : ""}"
 
   code = templatefile("${path.module}/function.js.tftpl", {
-    allowed_cidrs = var.allowed_ipv4_cidrs
-    basic_auth    = local.basic_auth
+    allowed_cidrs   = var.allowed_ipv4_cidrs
+    basic_auth_hash = local.basic_auth_hash
+    salt            = random_id.salt.hex
   })
 }
 
@@ -138,7 +91,8 @@ resource "aws_cloudfront_distribution" "this" {
   default_root_object = "index.html"
 
   origin {
-    domain_name              = aws_s3_bucket.this.bucket_regional_domain_name
+    domain_name              = data.aws_s3_bucket.this.bucket_regional_domain_name
+    origin_path              = "/${var.prefix}"
     origin_id                = "s3"
     origin_access_control_id = aws_cloudfront_origin_access_control.this.id
   }
@@ -250,14 +204,20 @@ data "aws_iam_policy_document" "deploy" {
     sid       = "ListBucket"
     effect    = "Allow"
     actions   = ["s3:ListBucket"]
-    resources = [aws_s3_bucket.this.arn]
+    resources = [data.aws_s3_bucket.this.arn]
+
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = [var.prefix, "${var.prefix}/*"]
+    }
   }
 
   statement {
     sid       = "WriteObjects"
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    resources = ["${aws_s3_bucket.this.arn}/*"]
+    resources = ["${data.aws_s3_bucket.this.arn}/${var.prefix}/*"]
   }
 
   statement {

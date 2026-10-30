@@ -7,13 +7,13 @@ on:
         type: string
         required: true
       cms-domain:
-        description: "cms-hostingモジュールのドメイン。指定すると https://<cms-domain>/preview/pr-<番号>/ に配信する（サイトのテンプレートがbase対応であること）"
+        description: "cms-hostingモジュールのドメイン。https://<cms-domain>/preview/pr-<番号>/ に配信する（サイトのテンプレートがbase対応であること）"
         type: string
-        default: ""
-      preview-domain:
-        description: "ホスト名形式のプレビューのドメイン。https://pr-<番号>.<preview-domain>/ に配信する（cms-domainが空のとき）"
+        required: true
+      preview-prefix:
+        description: "cms-hostingのプレフィックス。プレビューは <prefix>/preview/pr-<番号>/ に置く"
         type: string
-        default: ""
+        default: cms
       aws-region:
         type: string
         default: ap-northeast-1
@@ -35,23 +35,15 @@ jobs:
         id: loc
         env:
           CMS_DOMAIN: ${{ inputs.cms-domain }}
-          PREVIEW_DOMAIN: ${{ inputs.preview-domain }}
+          PREFIX: ${{ inputs.preview-prefix }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          if [ -n "$CMS_DOMAIN" ]; then
-            echo "prefix=preview/pr-${PR_NUMBER}" >> "$GITHUB_OUTPUT"
-            echo "base_path=/preview/pr-${PR_NUMBER}" >> "$GITHUB_OUTPUT"
-            echo "site_url=https://${CMS_DOMAIN}" >> "$GITHUB_OUTPUT"
-            echo "url=https://${CMS_DOMAIN}/preview/pr-${PR_NUMBER}/" >> "$GITHUB_OUTPUT"
-          elif [ -n "$PREVIEW_DOMAIN" ]; then
-            echo "prefix=pr-${PR_NUMBER}" >> "$GITHUB_OUTPUT"
-            echo "base_path=" >> "$GITHUB_OUTPUT"
-            echo "site_url=https://pr-${PR_NUMBER}.${PREVIEW_DOMAIN}" >> "$GITHUB_OUTPUT"
-            echo "url=https://pr-${PR_NUMBER}.${PREVIEW_DOMAIN}/" >> "$GITHUB_OUTPUT"
-          else
-            echo "cms-domain か preview-domain のどちらかを指定してください" >&2
-            exit 1
-          fi
+          {
+            echo "prefix=${PREFIX}/preview/pr-${PR_NUMBER}"
+            echo "base_path=/preview/pr-${PR_NUMBER}"
+            echo "site_url=https://${CMS_DOMAIN}"
+            echo "url=https://${CMS_DOMAIN}/preview/pr-${PR_NUMBER}/"
+          } >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -86,13 +78,7 @@ jobs:
           aws-region: ${{ inputs.aws-region }}
       - name: Delete preview
         env:
-          CMS_DOMAIN: ${{ inputs.cms-domain }}
+          PREFIX: ${{ inputs.preview-prefix }}
           BUCKET: ${{ inputs.preview-bucket }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          if [ -n "$CMS_DOMAIN" ]; then
-            prefix="preview/pr-${PR_NUMBER}"
-          else
-            prefix="pr-${PR_NUMBER}"
-          fi
-          aws s3 rm "s3://${BUCKET}/${prefix}/" --recursive
+        run: aws s3 rm "s3://${BUCKET}/${PREFIX}/preview/pr-${PR_NUMBER}/" --recursive

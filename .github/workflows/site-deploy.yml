@@ -4,12 +4,23 @@ on:
   workflow_call:
     inputs:
       site-url:
+        description: "ビルドに渡すSITE_URL（canonical URLなどに使う）"
         type: string
         default: ""
-      deploy-target:
+      ref:
+        description: "ビルドするコミット。空なら呼び出し元のコミット"
         type: string
-        default: none
+        default: ""
+      ref-from-environment:
+        description: "refが空のとき、このEnvironment（例: staging）に最後に成功したデプロイのコミットをビルドする"
+        type: string
+        default: ""
+      environment:
+        description: "サイトを配信するジョブのEnvironment名。OIDCのsubjectが repo:<owner>/<repo>:environment:<名前> になる"
+        type: string
+        default: ""
       aws-role-arn:
+        description: "サイトを配信するロール。空ならサイトの配信はしない"
         type: string
         default: ""
       aws-region:
@@ -18,11 +29,23 @@ on:
       s3-bucket:
         type: string
         default: ""
+      s3-prefix:
+        description: "バケット内の配信先プレフィックス（例: staging、production）"
+        type: string
+        default: ""
       cloudfront-distribution-id:
         type: string
         default: ""
       admin-s3-bucket:
-        description: "管理画面をS3のadmin/へ配信する（cms-hostingモジュール）。指定したときだけ実行する"
+        description: "管理画面をS3へ配信する（cms-hostingモジュール）。指定したときだけ実行する"
+        type: string
+        default: ""
+      admin-s3-prefix:
+        description: "cms-hostingのプレフィックス。管理画面は <prefix>/admin/ に置く"
+        type: string
+        default: cms
+      admin-site-url:
+        description: "管理画面のビルドに渡すSITE_URL。空ならsite-url"
         type: string
         default: ""
       admin-role-arn:
@@ -38,12 +61,45 @@ on:
 permissions:
   id-token: write
   contents: read
+  deployments: read
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.ref.outputs.ref }}
+    steps:
+      - id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ inputs.ref }}
+          FROM_ENVIRONMENT: ${{ inputs.ref-from-environment }}
+        run: |
+          ref="$REF"
+          if [ -z "$ref" ] && [ -n "$FROM_ENVIRONMENT" ]; then
+            for id in $(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=${FROM_ENVIRONMENT}&per_page=10" --jq '.[].id'); do
+              state=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${id}/statuses" --jq '.[0].state')
+              if [ "$state" = success ]; then
+                ref=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${id}" --jq .sha)
+                break
+              fi
+            done
+            if [ -z "$ref" ]; then
+              echo "${FROM_ENVIRONMENT} に成功したデプロイがありません" >&2
+              exit 1
+            fi
+          fi
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "ビルドするコミット: ${ref:-$GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
+
   build:
+    needs: resolve
+    if: inputs.aws-role-arn != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.ref }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
@@ -59,9 +115,8 @@ jobs:
 
   deploy-aws:
     needs: build
-    if: inputs.deploy-target == 'aws'
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ inputs.environment }}
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -71,7 +126,7 @@ jobs:
         with:
           role-to-assume: ${{ inputs.aws-role-arn }}
           aws-region: ${{ inputs.aws-region }}
-      - run: aws s3 sync dist "s3://${{ inputs.s3-bucket }}" --delete
+      - run: aws s3 sync dist "s3://${{ inputs.s3-bucket }}/${{ inputs.s3-prefix }}/" --delete
       - run: aws cloudfront create-invalidation --distribution-id "${{ inputs.cloudfront-distribution-id }}" --paths "/*"
 
   deploy-admin:
@@ -86,7 +141,7 @@ jobs:
       - run: npm ci
       - run: npm run build:admin
         env:
-          SITE_URL: ${{ inputs.site-url }}
+          SITE_URL: ${{ inputs.admin-site-url || inputs.site-url }}
       - run: rsync -a --delete dist-admin/ "${{ inputs.admin-rsync-target }}"
 
   deploy-admin-s3:
@@ -101,10 +156,10 @@ jobs:
       - run: npm ci
       - run: npm run build:admin
         env:
-          SITE_URL: ${{ inputs.site-url }}
+          SITE_URL: ${{ inputs.admin-site-url || inputs.site-url }}
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ inputs.admin-role-arn }}
           aws-region: ${{ inputs.aws-region }}
-      - run: aws s3 sync dist-admin "s3://${{ inputs.admin-s3-bucket }}/admin/" --delete
-      - run: aws s3 cp dist-admin/config.yml "s3://${{ inputs.admin-s3-bucket }}/admin/config.yml" --content-type "text/yaml; charset=utf-8"
+      - run: aws s3 sync dist-admin "s3://${{ inputs.admin-s3-bucket }}/${{ inputs.admin-s3-prefix }}/admin/" --delete
+      - run: aws s3 cp dist-admin/config.yml "s3://${{ inputs.admin-s3-bucket }}/${{ inputs.admin-s3-prefix }}/admin/config.yml" --content-type "text/yaml; charset=utf-8"

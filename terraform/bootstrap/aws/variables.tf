@@ -15,8 +15,8 @@ variable "tags" {
   default = {}
 }
 
-variable "state_bucket_name" {
-  description = "Terraform stateを置くS3バケット名。"
+variable "bucket_name" {
+  description = "共有のS3バケット名。terraform/にstate、cms/・staging/・production/に配信するファイルを置く。ポリシーとライフサイクルはstacks/awsが管理する。"
   type        = string
 }
 
