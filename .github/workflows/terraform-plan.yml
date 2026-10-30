@@ -26,7 +26,7 @@ on:
         default: "1.16.4"
     secrets:
       cms-basic-auth-password:
-        description: CMSのBasic認証のパスワード（TF_VAR_cms_basic_auth_passwordとして渡す）。未指定なら自動生成される
+        description: CMSのBasic認証のパスワード（TF_VAR_cms_basic_auth_passwordとして渡す）。cms.basic_auth_enabledが有効なとき必須
         required: false
 
 permissions:

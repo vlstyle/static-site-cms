@@ -1,6 +1,6 @@
 locals {
   primary_domain = var.domains[0]
-  basic_auth     = var.basic_auth_enabled ? base64encode("${var.name}:${random_password.basic_auth[0].result}") : ""
+  basic_auth     = var.basic_auth_enabled ? base64encode("${var.name}:${var.basic_auth_password}") : ""
 }
 
 resource "aws_s3_bucket" "this" {
@@ -57,61 +57,6 @@ data "aws_iam_policy_document" "bucket" {
 resource "aws_s3_bucket_policy" "this" {
   bucket = aws_s3_bucket.this.id
   policy = data.aws_iam_policy_document.bucket.json
-}
-
-resource "random_password" "basic_auth" {
-  count = var.basic_auth_enabled ? 1 : 0
-
-  length  = 24
-  special = false
-}
-
-resource "aws_ssm_parameter" "basic_auth" {
-  count = var.basic_auth_enabled ? 1 : 0
-
-  name  = "/${var.name}/basic-auth"
-  type  = "SecureString"
-  value = "${var.name}:${random_password.basic_auth[0].result}"
-}
-
-data "aws_region" "current" {}
-
-data "aws_iam_policy_document" "basic_auth_reader" {
-  count = var.basic_auth_enabled && var.basic_auth_reader_iam_group != null ? 1 : 0
-
-  statement {
-    sid       = "ReadBasicAuth"
-    effect    = "Allow"
-    actions   = ["ssm:GetParameter"]
-    resources = [aws_ssm_parameter.basic_auth[0].arn]
-  }
-
-  statement {
-    sid       = "DecryptViaSsm"
-    effect    = "Allow"
-    actions   = ["kms:Decrypt"]
-    resources = ["*"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "kms:ViaService"
-      values   = ["ssm.${data.aws_region.current.region}.amazonaws.com"]
-    }
-  }
-}
-
-resource "aws_iam_policy" "basic_auth_reader" {
-  count = var.basic_auth_enabled && var.basic_auth_reader_iam_group != null ? 1 : 0
-
-  name   = coalesce(var.basic_auth_reader_policy_name, "${var.name}-basic-auth-reader")
-  policy = data.aws_iam_policy_document.basic_auth_reader[0].json
-}
-
-resource "aws_iam_group_policy_attachment" "basic_auth_reader" {
-  count = var.basic_auth_enabled && var.basic_auth_reader_iam_group != null ? 1 : 0
-
-  group      = var.basic_auth_reader_iam_group
-  policy_arn = aws_iam_policy.basic_auth_reader[0].arn
 }
 
 resource "aws_cloudfront_function" "this" {

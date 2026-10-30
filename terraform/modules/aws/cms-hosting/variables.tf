@@ -42,22 +42,15 @@ variable "basic_auth_user" {
 }
 
 variable "basic_auth_password" {
-  description = "Basic認証のパスワード。nullなら自動生成してSSMに保存する。渡した場合はSSMには保存せず、CloudFront Functionにもハッシュ（ソルト付きSHA-256）だけを埋め込む。"
+  description = "Basic認証のパスワード。basic_auth_enabledがtrueのとき必須。CloudFront Functionにはハッシュ（ソルト付きSHA-256）だけを埋め込む。"
   type        = string
   default     = null
   sensitive   = true
-}
 
-variable "basic_auth_reader_iam_group" {
-  description = "自動生成したBasic認証の資格情報（SSMパラメータ）を読めるIAMグループ名。nullなら付与しない。"
-  type        = string
-  default     = null
-}
-
-variable "basic_auth_reader_policy_name" {
-  description = "Basic認証の資格情報を読むIAMポリシーの名前。nullなら <name>-basic-auth-reader。"
-  type        = string
-  default     = null
+  validation {
+    condition     = !var.basic_auth_enabled || (var.basic_auth_password != null && var.basic_auth_password != "")
+    error_message = "basic_auth_enabledがtrueのときは、basic_auth_passwordを指定してください。"
+  }
 }
 
 variable "allowed_ipv4_cidrs" {

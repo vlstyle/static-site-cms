@@ -1,7 +1,5 @@
 locals {
-  generate_password = var.basic_auth_enabled && var.basic_auth_password == null
-  password          = var.basic_auth_enabled ? coalesce(var.basic_auth_password, one(random_password.generated[*].result)) : null
-  basic_auth_hash   = var.basic_auth_enabled ? nonsensitive(sha256("${random_id.salt.hex}${base64encode("${var.basic_auth_user}:${local.password}")}")) : ""
+  basic_auth_hash = var.basic_auth_enabled ? nonsensitive(sha256("${random_id.salt.hex}${base64encode("${var.basic_auth_user}:${var.basic_auth_password}")}")) : ""
 }
 
 resource "aws_s3_bucket" "this" {
@@ -90,61 +88,6 @@ resource "aws_s3_bucket_policy" "this" {
 
 resource "random_id" "salt" {
   byte_length = 16
-}
-
-resource "random_password" "generated" {
-  count = local.generate_password ? 1 : 0
-
-  length  = 24
-  special = false
-}
-
-resource "aws_ssm_parameter" "basic_auth" {
-  count = local.generate_password ? 1 : 0
-
-  name  = "/${var.name}/basic-auth"
-  type  = "SecureString"
-  value = "${var.basic_auth_user}:${random_password.generated[0].result}"
-}
-
-data "aws_region" "current" {}
-
-data "aws_iam_policy_document" "basic_auth_reader" {
-  count = local.generate_password && var.basic_auth_reader_iam_group != null ? 1 : 0
-
-  statement {
-    sid       = "ReadBasicAuth"
-    effect    = "Allow"
-    actions   = ["ssm:GetParameter"]
-    resources = [aws_ssm_parameter.basic_auth[0].arn]
-  }
-
-  statement {
-    sid       = "DecryptViaSsm"
-    effect    = "Allow"
-    actions   = ["kms:Decrypt"]
-    resources = ["*"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "kms:ViaService"
-      values   = ["ssm.${data.aws_region.current.region}.amazonaws.com"]
-    }
-  }
-}
-
-resource "aws_iam_policy" "basic_auth_reader" {
-  count = local.generate_password && var.basic_auth_reader_iam_group != null ? 1 : 0
-
-  name   = coalesce(var.basic_auth_reader_policy_name, "${var.name}-basic-auth-reader")
-  policy = data.aws_iam_policy_document.basic_auth_reader[0].json
-}
-
-resource "aws_iam_group_policy_attachment" "basic_auth_reader" {
-  count = local.generate_password && var.basic_auth_reader_iam_group != null ? 1 : 0
-
-  group      = var.basic_auth_reader_iam_group
-  policy_arn = aws_iam_policy.basic_auth_reader[0].arn
 }
 
 resource "aws_cloudfront_function" "this" {

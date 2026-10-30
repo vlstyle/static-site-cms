@@ -8,7 +8,6 @@
 |---|---|
 | `modules/aws/static-site` | S3 + CloudFront + ACM + Route 53 + デプロイ用IAMロール。本番サイトと管理画面の両方に使う。Basic認証・IPv4制限・noindexはオプション |
 | `modules/aws/cms-hosting` | CMSの管理画面（`/admin/`）とPRのプレビュー（`/preview/pr-<番号>/`）を、1つのドメイン・S3バケット・CloudFrontで配信する。Basic認証、IPv4制限、noindex。プレビューは30日で自動削除。スターターのテンプレートが `base`（サブパス）に対応している必要がある |
-| `modules/aws/preview` | PRごとのプレビューを別ホスト名（`pr-<番号>.<domain>`）で配信する。ワイルドカード証明書が必要。サイトを `base` 対応にできない場合の代替 |
 | `bootstrap/aws` | 初回だけ手元で適用するルートモジュール。OIDCプロバイダ、plan/apply用ロール、stateバケット |
 | `stacks/aws` | `static-site` と `cms-hosting` を束ねたルートモジュール。変数は `site`・`cms`（`null` なら作らない） |
 
@@ -28,16 +27,11 @@ cms     = { bucket_name = "example-site-cms", domain = "cms.example.com", allowe
 
 ### Basic認証のパスワード
 
-`cms.basic_auth_enabled`（既定 `true`）が有効なとき、パスワードは次のどちらかで決まる。
-
-| 方法 | 内容 |
-|---|---|
-| 外部から渡す（推奨） | 環境変数 `TF_VAR_cms_basic_auth_password`（GitHub ActionsのSecretから渡す）。リポジトリには書かない。CloudFront Functionにはソルト付きSHA-256のハッシュだけが入り、パスワード自体はstateにもSSMにも残らない |
-| 自動生成 | 渡さなかった場合。`random_password` で生成し、SSM（`/<name>-cms/basic-auth`、値は `ユーザー名:パスワード`）に保存する。stateにも残る |
+`cms.basic_auth_enabled`（既定 `true`）が有効なときは、パスワードを環境変数 `TF_VAR_cms_basic_auth_password` で渡す（GitHub ActionsのSecretから渡す。リポジトリには書かない）。渡さないとplanが失敗する。CloudFront Functionにはソルト付きSHA-256のハッシュだけが入り、パスワード自体はstateにもSSMにも残らない。
 
 ユーザー名は `cms.basic_auth_user`（既定 `cms`）。
 
-適用後、出力 `github_variables` の値をサイトリポジトリのActionsのリポジトリ変数に設定する。自動生成した場合のBasic認証の資格情報は、出力 `basic_auth_ssm_parameters` のSSMパラメータにある。
+適用後、出力 `github_variables` の値をサイトリポジトリのActionsのリポジトリ変数に設定する。
 
 ## GitHub Actionsから実行する
 
@@ -84,7 +78,7 @@ jobs:
       cms-basic-auth-password: ${{ secrets.CMS_BASIC_AUTH_PASSWORD }}
 ```
 
-`cms-basic-auth-password`（任意）を渡すと、`TF_VAR_cms_basic_auth_password` としてTerraformに渡り、CMSのBasic認証のパスワードになる。渡さなければ自動生成してSSMに保存される。値はGitHubのSecretに置き、リポジトリには書かない。
+`cms-basic-auth-password` は `TF_VAR_cms_basic_auth_password` としてTerraformに渡り、CMSのBasic認証のパスワードになる。CMSのBasic認証を有効にするとき（既定）は必須。値はGitHubのSecretに置き、リポジトリには書かない。
 
 | 入力 | 既定値 | 内容 |
 |---|---|---|

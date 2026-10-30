@@ -26,12 +26,6 @@ variable "github_subject_prefix" {
   type        = string
 }
 
-variable "basic_auth_reader_iam_group" {
-  description = "Basic認証の資格情報（SSM）を読めるIAMグループ名。nullなら付与しない。"
-  type        = string
-  default     = null
-}
-
 variable "site" {
   description = "本番サイト（S3 + CloudFront）。nullなら作らない。"
   type = object({
@@ -55,7 +49,7 @@ variable "cms" {
 }
 
 variable "cms_basic_auth_password" {
-  description = "CMSのBasic認証のパスワード。nullなら自動生成してSSMに保存する。渡す場合はTF_VAR_cms_basic_auth_passwordで渡し、リポジトリには書かない。"
+  description = "CMSのBasic認証のパスワード（cms.basic_auth_enabledがtrueのとき必須）。TF_VAR_cms_basic_auth_passwordで渡し、リポジトリには書かない。"
   type        = string
   default     = null
   sensitive   = true
