@@ -65,6 +65,8 @@ jobs:
 
 Rulesetの必須チェック名は、呼び出し側のジョブIDを前置した `ci / build`・`ci / path-guard`・`ci / file-check` になる。
 
+組織のチーム（`site-poweruser`・`site-admins`）を使えない個人アカウントのリポジトリでは、`with: path-guard: false` で `path-guard` ジョブを無効にできる。このとき `ci / path-guard` は必須チェックから外す。
+
 ## サブパスで配信する（`base`）
 
 `BASE_PATH` 環境変数（例: `/preview/pr-12`）で、サイトをサブパスの配下に置ける（スターターの `astro.config.mjs` が Astro の `base` に渡す）。
