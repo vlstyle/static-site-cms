@@ -35,5 +35,5 @@ TerraformをGitHub Actionsから動かすために必要な、次のリソース
 ## 注意
 
 - このモジュールのstateは手元に残る。紛失しないよう管理するか、作成した `state_bucket_name` のバケットへ `terraform init -migrate-state` で移す。
-- apply用ロールの既定は強い権限を持つ。配信基盤に必要な権限（S3・CloudFront・ACM・Route 53・IAM・SSM）に絞ることを推奨する。
+- apply用ロールの既定は強い権限を持つ。配信基盤に必要な権限（S3・CloudFront・ACM・Route 53・IAM）に絞ることを推奨する。
 - `github_subject_prefix` はアカウントのOIDC subjectの形式に合わせる（IDを含める設定のアカウントでは `repo:owner@123/name@456`）。

@@ -47,27 +47,27 @@ variable "noindex" {
 }
 
 variable "basic_auth_enabled" {
-  description = "trueにするとBasic認証を必須にする。資格情報は自動生成してSSMに保存する。"
+  description = "trueにするとBasic認証を必須にする。パスワードはbasic_auth_passwordで渡す（ユーザー名はnameと同じ）。"
   type        = bool
   default     = false
 }
 
-variable "basic_auth_reader_iam_group" {
-  description = "Basic認証の資格情報（SSMパラメータ）を読めるIAMグループ名。nullなら付与しない。"
+variable "basic_auth_password" {
+  description = "Basic認証のパスワード。basic_auth_enabledがtrueのとき必須。"
   type        = string
   default     = null
+  sensitive   = true
+
+  validation {
+    condition     = !var.basic_auth_enabled || (var.basic_auth_password != null && var.basic_auth_password != "")
+    error_message = "basic_auth_enabledがtrueのときは、basic_auth_passwordを指定してください。"
+  }
 }
 
 variable "allowed_ipv4_cidrs" {
   description = "アクセスを許可するIPv4のCIDR。空なら制限しない。IPv6からのアクセスは拒否される。"
   type        = list(string)
   default     = []
-}
-
-variable "basic_auth_reader_policy_name" {
-  description = "Basic認証の資格情報を読むIAMポリシーの名前。nullなら <name>-basic-auth-reader。"
-  type        = string
-  default     = null
 }
 
 variable "oidc_provider_arn" {

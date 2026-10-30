@@ -16,8 +16,3 @@ output "github_variables" {
     },
   )
 }
-
-output "basic_auth_ssm_parameters" {
-  description = "Basic認証の資格情報（自動生成した場合）が入っているSSMパラメータ名。"
-  value       = compact([var.cms == null ? null : module.cms[0].basic_auth_ssm_parameter])
-}
