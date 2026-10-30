@@ -5,7 +5,7 @@ variable "region" {
 }
 
 variable "name" {
-  description = "リソース名の接頭辞。本番サイトのリソースは <name>-site、CMS（管理画面とプレビュー）のリソースは <name> になる。"
+  description = "リソース名の接頭辞。CMS（管理画面とプレビュー）のリソースは <name>、stagingは <name>-staging、productionは <name>-production になる。"
   type        = string
   default     = "cms"
 }
@@ -26,19 +26,14 @@ variable "github_subject_prefix" {
   type        = string
 }
 
-variable "site" {
-  description = "本番サイト（S3 + CloudFront）。nullなら作らない。"
-  type = object({
-    bucket_name = string
-    domains     = list(string)
-  })
-  default = null
+variable "bucket_name" {
+  description = "cms・staging・production・terraformを置く共有のS3バケット名。bootstrap/awsで作成済みのもの。"
+  type        = string
 }
 
 variable "cms" {
-  description = "CMSの管理画面（/admin/）とPRのプレビュー（/preview/pr-<番号>/）を1つのドメインで配信する。nullなら作らない。"
+  description = "CMSの管理画面（/admin/）とPRのプレビュー（/preview/pr-<番号>/）。nullなら作らない。"
   type = object({
-    bucket_name         = string
     domain              = string
     basic_auth_enabled  = optional(bool, true)
     basic_auth_user     = optional(string, "cms")
@@ -48,8 +43,30 @@ variable "cms" {
   default = null
 }
 
-variable "cms_basic_auth_password" {
-  description = "CMSのBasic認証のパスワード（cms.basic_auth_enabledがtrueのとき必須）。TF_VAR_cms_basic_auth_passwordで渡し、リポジトリには書かない。"
+variable "staging" {
+  description = "mainにマージされた内容が常に反映される最終確認用のサイト。noindexを付ける。nullなら作らない。site_urlを省略すると https://<domains[0]> になる。"
+  type = object({
+    domains            = list(string)
+    site_url           = optional(string)
+    basic_auth_enabled = optional(bool, true)
+    basic_auth_user    = optional(string, "staging")
+    allowed_ipv4_cidrs = optional(list(string), [])
+  })
+  default = null
+}
+
+variable "production" {
+  description = "公開サイト。nullなら作らない。site_urlを省略すると https://<domains[0]> になる。"
+  type = object({
+    domains            = list(string)
+    site_url           = optional(string)
+    allowed_ipv4_cidrs = optional(list(string), [])
+  })
+  default = null
+}
+
+variable "basic_auth_password" {
+  description = "CMSとstagingのBasic認証のパスワード（Basic認証が有効なとき必須）。TF_VAR_basic_auth_passwordで渡し、リポジトリには書かない。"
   type        = string
   default     = null
   sensitive   = true

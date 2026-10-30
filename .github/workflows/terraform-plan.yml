@@ -13,7 +13,7 @@ on:
         required: true
       state-key:
         type: string
-        default: static-site-cms/terraform.tfstate
+        default: terraform/stack.tfstate
       aws-region:
         type: string
         default: ap-northeast-1
@@ -25,8 +25,8 @@ on:
         type: string
         default: "1.16.4"
     secrets:
-      cms-basic-auth-password:
-        description: CMSのBasic認証のパスワード（TF_VAR_cms_basic_auth_passwordとして渡す）。cms.basic_auth_enabledが有効なとき必須
+      basic-auth-password:
+        description: CMSとstagingのBasic認証のパスワード（TF_VAR_basic_auth_passwordとして渡す）。Basic認証が有効なとき必須
         required: false
 
 permissions:
@@ -54,14 +54,14 @@ jobs:
         with:
           terraform_version: ${{ inputs.terraform-version }}
           terraform_wrapper: false
-      - name: Pass the CMS Basic auth password
+      - name: Pass the Basic auth password
         env:
-          CMS_BASIC_AUTH_PASSWORD: ${{ secrets.cms-basic-auth-password }}
+          BASIC_AUTH_PASSWORD: ${{ secrets.basic-auth-password }}
         run: |
-          if [ -n "$CMS_BASIC_AUTH_PASSWORD" ]; then
+          if [ -n "$BASIC_AUTH_PASSWORD" ]; then
             {
-              echo "TF_VAR_cms_basic_auth_password<<__CMS_PW__"
-              printf '%s\n' "$CMS_BASIC_AUTH_PASSWORD"
+              echo "TF_VAR_basic_auth_password<<__CMS_PW__"
+              printf '%s\n' "$BASIC_AUTH_PASSWORD"
               echo "__CMS_PW__"
             } >> "$GITHUB_ENV"
           fi

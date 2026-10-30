@@ -5,8 +5,14 @@ variable "name" {
 }
 
 variable "bucket_name" {
-  description = "管理画面とプレビューを置くS3バケット名。"
+  description = "管理画面とプレビューを置く既存のS3バケット名（バケット自体はこのモジュールでは作らない）。"
   type        = string
+}
+
+variable "prefix" {
+  description = "バケット内で、このモジュールが使うキーのプレフィックス。<prefix>/admin/ に管理画面、<prefix>/preview/pr-<番号>/ にプレビューを置く。"
+  type        = string
+  default     = "cms"
 }
 
 variable "domain" {
@@ -22,12 +28,6 @@ variable "hosted_zone_id" {
 variable "price_class" {
   type    = string
   default = "PriceClass_200"
-}
-
-variable "preview_expire_days" {
-  description = "プレビュー（preview/）のファイルを自動削除するまでの日数。管理画面（admin/）は削除しない。"
-  type        = number
-  default     = 30
 }
 
 variable "basic_auth_enabled" {

@@ -1,2 +1,2 @@
-state_bucket_name     = "example-terraform-state"
+bucket_name           = "example-site"
 github_subject_prefix = "repo:owner/site-repo"

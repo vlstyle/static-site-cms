@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 %{ if length(allowed_cidrs) > 0 ~}
 function toInt(ip) {
   var p = ip.split('.');
@@ -15,6 +17,17 @@ function inCidr(ip, cidr) {
 var allowedCidrs = ${jsonencode(allowed_cidrs)};
 
 %{ endif ~}
+%{ if basic_auth_hash != "" ~}
+var salt = '${salt}';
+var expected = '${basic_auth_hash}';
+
+function authorized(header) {
+  if (!header || header.indexOf('Basic ') !== 0) return false;
+  var token = header.slice(6);
+  return crypto.createHash('sha256').update(salt + token).digest('hex') === expected;
+}
+
+%{ endif ~}
 function handler(event) {
   var request = event.request;
 %{ if length(allowed_cidrs) > 0 ~}
@@ -27,8 +40,8 @@ function handler(event) {
 %{ endif ~}
 %{ if basic_auth != "" ~}
 
-  var headers = request.headers;
-  if (!headers.authorization || headers.authorization.value !== 'Basic ${basic_auth}') {
+  var authorization = request.headers.authorization;
+  if (!authorization || !authorized(authorization.value)) {
     return {
       statusCode: 401,
       statusDescription: 'Unauthorized',

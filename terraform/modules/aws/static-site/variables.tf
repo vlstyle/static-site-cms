@@ -4,7 +4,12 @@ variable "name" {
 }
 
 variable "bucket_name" {
-  description = "配信するファイルを置くS3バケット名。"
+  description = "配信するファイルを置く既存のS3バケット名（バケット自体はこのモジュールでは作らない）。"
+  type        = string
+}
+
+variable "prefix" {
+  description = "バケット内で、このサイトのファイルを置くキーのプレフィックス（例: staging、production）。"
   type        = string
 }
 
@@ -47,9 +52,14 @@ variable "noindex" {
 }
 
 variable "basic_auth_enabled" {
-  description = "trueにするとBasic認証を必須にする。パスワードはbasic_auth_passwordで渡す（ユーザー名はnameと同じ）。"
+  description = "trueにするとBasic認証を必須にする。パスワードはbasic_auth_passwordで渡す。"
   type        = bool
   default     = false
+}
+
+variable "basic_auth_user" {
+  type    = string
+  default = "site"
 }
 
 variable "basic_auth_password" {
