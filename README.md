@@ -99,6 +99,12 @@ Terraformを使わない場合は、次を満たすように作る。
 - GitHub ActionsのOIDCで引き受けるIAMロールを作る。信頼ポリシーのsubjectは、`CMS_ADMIN_DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:ref:refs/heads/main`、`CMS_PREVIEW_ROLE_ARN` が `repo:<owner>/<repo>:pull_request`、`STAGING_DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:environment:staging`、`PRODUCTION_DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:environment:production`。
 - 各ロールの権限は、自分のプレフィックスへの `s3:ListBucket`（`s3:prefix` 条件）と `s3:GetObject`・`PutObject`・`DeleteObject`。サイトのロールにはさらに、ディストリビューションへの `cloudfront:CreateInvalidation`。
 
+### 公開日時
+
+`static-site-cms/published` の `jstDate` をスキーマの日付項目（`publishDate` など）に使うと、タイムゾーンのない値を日本時間として扱う。YAMLのタイムゾーンなしの日時はUTCとして読まれるため、`jstDate` が9時間戻して補正する。`+09:00` などのオフセット付きの値は、文字列（引用符つき）で書けばそのまま使う。
+
+`isPublished` はビルド時に一度だけ判定する。公開日時を過ぎた後に再ビルドしないと、ページは出力されない。`site-deploy.yml` は `target: staging` のビルドで環境変数 `SHOW_UNPUBLISHED=1` を渡し、公開日時にかかわらず全件を出力する（productionは公開日時で絞る）。
+
 ### キャッシュ
 
 `site-deploy.yml` は、アップロード時に `Cache-Control` を付ける。ハッシュ付きのアセットのディレクトリ（入力 `immutable-assets-dir`、既定 `_astro`）は `public, max-age=31536000, immutable`、それ以外（HTML、管理画面を含む）は `no-cache`（ブラウザは毎回確認する）。CloudFrontのキャッシュは、productionならリリースのたびに `/*` を無効化する。古いハッシュのアセットは削除しない（HTMLが参照するのは新しいハッシュだけなので、残っても表示には影響しない）。
