@@ -39,8 +39,12 @@ TerraformをGitHub Actionsから動かすために必要な、次のリソース
 このモジュールのstateは、最初は手元に作られる。バケットができたら、`terraform/bootstrap.tfstate` へ移す。
 
 ```bash
-echo 'terraform { backend "s3" {} }' > backend.tf
-terraform init -migrate-state -backend-config="bucket=<bucket_name>" -backend-config="key=terraform/bootstrap.tfstate" -backend-config="region=ap-northeast-1" -backend-config="use_lockfile=true"
+cat > backend.tf <<'EOF'
+terraform {
+  backend "s3" {}
+}
+EOF
+terraform init -migrate-state -force-copy -backend-config="bucket=<bucket_name>" -backend-config="key=terraform/bootstrap.tfstate" -backend-config="region=ap-northeast-1" -backend-config="use_lockfile=true"
 ```
 
 `backend.tf` はコミットしない。移行後は手元のstateファイルを削除してよい。
