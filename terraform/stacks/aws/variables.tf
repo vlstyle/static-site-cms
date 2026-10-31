@@ -39,6 +39,9 @@ variable "cms" {
     basic_auth_user     = optional(string, "cms")
     allowed_ipv4_cidrs  = optional(list(string), [])
     preview_expire_days = optional(number, 30)
+
+    admin_caching_enabled   = optional(bool, true)
+    preview_caching_enabled = optional(bool, false)
   })
   default = null
 }
@@ -51,6 +54,7 @@ variable "staging" {
     basic_auth_enabled = optional(bool, true)
     basic_auth_user    = optional(string, "staging")
     allowed_ipv4_cidrs = optional(list(string), [])
+    caching_enabled    = optional(bool, false)
   })
   default = null
 }
@@ -61,6 +65,7 @@ variable "production" {
     domains            = list(string)
     site_url           = optional(string)
     allowed_ipv4_cidrs = optional(list(string), [])
+    caching_enabled    = optional(bool, true)
   })
   default = null
 }

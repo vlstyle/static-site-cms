@@ -6,9 +6,10 @@ output "github_variables" {
       S3_BUCKET  = var.bucket_name
     },
     var.cms == null ? {} : {
-      CMS_DOMAIN                = var.cms.domain
-      CMS_ADMIN_DEPLOY_ROLE_ARN = module.cms[0].admin_deploy_role_arn
-      CMS_PREVIEW_ROLE_ARN      = module.cms[0].preview_publisher_role_arn
+      CMS_DOMAIN                     = var.cms.domain
+      CMS_ADMIN_DEPLOY_ROLE_ARN      = module.cms[0].admin_deploy_role_arn
+      CMS_CLOUDFRONT_DISTRIBUTION_ID = module.cms[0].distribution_id
+      CMS_PREVIEW_ROLE_ARN           = module.cms[0].preview_publisher_role_arn
     },
     var.staging == null ? {} : {
       STAGING_SITE_URL                   = coalesce(var.staging.site_url, "https://${var.staging.domains[0]}")

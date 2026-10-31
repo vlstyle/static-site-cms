@@ -42,6 +42,19 @@ production = { domains = ["example.com", "www.example.com"] }
 
 `staging`・`production` の `site_url` を省略すると `https://<domains[0]>` になる。別の値にしたいときは `site_url` で上書きできる（ビルドに渡す `SITE_URL` になる）。
 
+### キャッシュ
+
+CloudFrontのキャッシュは、`Managed-CachingOptimized`（有効）と `Managed-CachingDisabled`（無効）を切り替える。無効にしたときは、ブラウザにもキャッシュさせないよう `Cache-Control: no-cache` を付ける。
+
+| 変数 | 既定 | 対象 |
+|---|---|---|
+| `cms.admin_caching_enabled` | `true` | 管理画面（`/admin/*`）。有効のとき、管理画面の配置後に `/admin/*` のキャッシュを無効化する（envファイルの `CMS_CLOUDFRONT_DISTRIBUTION_ID`） |
+| `cms.preview_caching_enabled` | `false` | プレビュー（`/preview/pr-<番号>/`） |
+| `staging.caching_enabled` | `false` | staging |
+| `production.caching_enabled` | `true` | production。配置のたびに `/*` のキャッシュを無効化する（`site-deploy.yml`） |
+
+Basic認証と IP 制限は CloudFront Function（viewer-request）で行うので、キャッシュが有効でも、キャッシュにヒットする前に毎回検証される。
+
 ### Basic認証のパスワード
 
 CMSとstagingのBasic認証（既定で有効）のパスワードは、環境変数 `TF_VAR_basic_auth_password` で渡す（GitHub ActionsのSecretから渡す。リポジトリには書かない）。渡さないとplanが失敗する。CloudFront Functionにはソルト付きSHA-256のハッシュだけが入り、パスワード自体はstateにもSSMにも残らない。

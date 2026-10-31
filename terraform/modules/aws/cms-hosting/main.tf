@@ -30,6 +30,14 @@ resource "aws_cloudfront_origin_access_control" "this" {
   signing_protocol                  = "sigv4"
 }
 
+data "aws_cloudfront_cache_policy" "optimized" {
+  name = "Managed-CachingOptimized"
+}
+
+data "aws_cloudfront_cache_policy" "disabled" {
+  name = "Managed-CachingDisabled"
+}
+
 resource "aws_cloudfront_response_headers_policy" "this" {
   name = "${var.name}-noindex"
 
@@ -38,6 +46,38 @@ resource "aws_cloudfront_response_headers_policy" "this" {
       header   = "X-Robots-Tag"
       value    = "noindex, nofollow"
       override = true
+    }
+
+    dynamic "items" {
+      for_each = var.preview_caching_enabled ? [] : [1]
+
+      content {
+        header   = "Cache-Control"
+        value    = "no-cache"
+        override = true
+      }
+    }
+  }
+}
+
+resource "aws_cloudfront_response_headers_policy" "admin" {
+  name = "${var.name}-admin"
+
+  custom_headers_config {
+    items {
+      header   = "X-Robots-Tag"
+      value    = "noindex, nofollow"
+      override = true
+    }
+
+    dynamic "items" {
+      for_each = var.admin_caching_enabled ? [] : [1]
+
+      content {
+        header   = "Cache-Control"
+        value    = "no-cache"
+        override = true
+      }
     }
   }
 }
@@ -92,13 +132,29 @@ resource "aws_cloudfront_distribution" "this" {
     origin_access_control_id = aws_cloudfront_origin_access_control.this.id
   }
 
+  ordered_cache_behavior {
+    path_pattern               = "/admin/*"
+    target_origin_id           = "s3"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = var.admin_caching_enabled ? data.aws_cloudfront_cache_policy.optimized.id : data.aws_cloudfront_cache_policy.disabled.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.admin.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.this.arn
+    }
+  }
+
   default_cache_behavior {
     target_origin_id           = "s3"
     viewer_protocol_policy     = "redirect-to-https"
     allowed_methods            = ["GET", "HEAD"]
     cached_methods             = ["GET", "HEAD"]
     compress                   = true
-    cache_policy_id            = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+    cache_policy_id            = var.preview_caching_enabled ? data.aws_cloudfront_cache_policy.optimized.id : data.aws_cloudfront_cache_policy.disabled.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.this.id
 
     function_association {
@@ -198,6 +254,13 @@ data "aws_iam_policy_document" "admin" {
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
     resources = ["${data.aws_s3_bucket.this.arn}/${var.prefix}/admin/*"]
+  }
+
+  statement {
+    sid       = "Invalidate"
+    effect    = "Allow"
+    actions   = ["cloudfront:CreateInvalidation"]
+    resources = [aws_cloudfront_distribution.this.arn]
   }
 }
 

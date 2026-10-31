@@ -47,6 +47,10 @@ on:
       cloudfront-distribution-id:
         type: string
         default: ""
+      immutable-assets-dir:
+        description: "ビルド出力(dist)の中の、ファイル名にハッシュが付くアセットのディレクトリ。Cache-Control: public, max-age=31536000, immutable を付けてアップロードする。それ以外は no-cache"
+        type: string
+        default: _astro
       admin-s3-bucket:
         type: string
         default: ""
@@ -87,6 +91,7 @@ jobs:
       admin_prefix: ${{ steps.c.outputs.admin_prefix }}
       admin_role_arn: ${{ steps.c.outputs.admin_role_arn }}
       admin_site_url: ${{ steps.c.outputs.admin_site_url }}
+      admin_distribution_id: ${{ steps.c.outputs.admin_distribution_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: c
@@ -148,6 +153,7 @@ jobs:
             echo "admin_prefix=$admin_prefix"
             echo "admin_role_arn=$admin_role_arn"
             echo "admin_site_url=$admin_site_url"
+            echo "admin_distribution_id=$(get CMS_CLOUDFRONT_DISTRIBUTION_ID)"
           } >> "$GITHUB_OUTPUT"
 
   resolve:
@@ -216,8 +222,14 @@ jobs:
           BUCKET: ${{ needs.config.outputs.bucket }}
           PREFIX: ${{ needs.config.outputs.prefix }}
           DISTRIBUTION_ID: ${{ needs.config.outputs.distribution_id }}
+          ASSETS_DIR: ${{ inputs.immutable-assets-dir }}
         run: |
-          aws s3 sync dist "s3://${BUCKET}/${PREFIX}/" --delete
+          exclude=()
+          if [ -n "$ASSETS_DIR" ] && [ -d "dist/${ASSETS_DIR}" ]; then
+            aws s3 sync "dist/${ASSETS_DIR}" "s3://${BUCKET}/${PREFIX}/${ASSETS_DIR}/" --cache-control "public, max-age=31536000, immutable"
+            exclude=(--exclude "${ASSETS_DIR}/*")
+          fi
+          aws s3 sync dist "s3://${BUCKET}/${PREFIX}/" --delete "${exclude[@]}" --cache-control "no-cache"
           aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*"
 
   deploy-admin:
@@ -257,6 +269,10 @@ jobs:
       - env:
           BUCKET: ${{ needs.config.outputs.admin_bucket }}
           PREFIX: ${{ needs.config.outputs.admin_prefix }}
+          DISTRIBUTION_ID: ${{ needs.config.outputs.admin_distribution_id }}
         run: |
-          aws s3 sync dist-admin "s3://${BUCKET}/${PREFIX}/admin/" --delete
-          aws s3 cp dist-admin/config.yml "s3://${BUCKET}/${PREFIX}/admin/config.yml" --content-type "text/yaml; charset=utf-8"
+          aws s3 sync dist-admin "s3://${BUCKET}/${PREFIX}/admin/" --delete --cache-control "no-cache"
+          aws s3 cp dist-admin/config.yml "s3://${BUCKET}/${PREFIX}/admin/config.yml" --content-type "text/yaml; charset=utf-8" --cache-control "no-cache"
+          if [ -n "$DISTRIBUTION_ID" ]; then
+            aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/admin/*" >/dev/null
+          fi

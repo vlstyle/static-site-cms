@@ -30,6 +30,18 @@ variable "price_class" {
   default = "PriceClass_200"
 }
 
+variable "admin_caching_enabled" {
+  description = "管理画面（/admin/*）のキャッシュ。trueならCachingOptimized、falseならCachingDisabled（Cache-Control: no-cache も付ける）。trueのときは、管理画面の配信後にキャッシュを無効化する（outputs の distribution_id）。"
+  type        = bool
+  default     = true
+}
+
+variable "preview_caching_enabled" {
+  description = "プレビュー（/preview/pr-<番号>/）のキャッシュ。trueならCachingOptimized、falseならCachingDisabled（Cache-Control: no-cache も付ける）。"
+  type        = bool
+  default     = false
+}
+
 variable "basic_auth_enabled" {
   description = "trueにするとBasic認証を必須にする。"
   type        = bool

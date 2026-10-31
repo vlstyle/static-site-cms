@@ -80,6 +80,7 @@ Rulesetの必須チェック名は、呼び出し側のジョブIDを前置し�
 | `S3_BUCKET` | 共有のS3バケット | deploy・preview |
 | `CMS_DOMAIN` | 管理画面とプレビューのドメイン | preview・deploy（管理画面） |
 | `CMS_ADMIN_DEPLOY_ROLE_ARN` | 管理画面を配置するロール | deploy（`deploy-admin: true`） |
+| `CMS_CLOUDFRONT_DISTRIBUTION_ID` | 管理画面のキャッシュを無効化するディストリビューション。あれば、管理画面の配置後に `/admin/*` を無効化する。ロールに `cloudfront:CreateInvalidation` が必要 | deploy（`deploy-admin: true`） |
 | `CMS_PREVIEW_ROLE_ARN` | プレビューを配置するロール | preview |
 | `STAGING_SITE_URL` `PRODUCTION_SITE_URL` | ビルドに渡す `SITE_URL` | deploy（`target`） |
 | `STAGING_DEPLOY_ROLE_ARN` `PRODUCTION_DEPLOY_ROLE_ARN` | サイトを配置するロール | deploy（`target`） |
@@ -97,6 +98,10 @@ Terraformを使わない場合は、次を満たすように作る。
 - 配信するCloudFrontのoriginは、バケットの該当プレフィックス（`origin_path`）にする。管理画面とプレビューは `cms/admin/`・`cms/preview/pr-<番号>/`、ドメインは `CMS_DOMAIN`。プレビューはサブパス（`/preview/pr-<番号>/`）で配信できること。
 - GitHub ActionsのOIDCで引き受けるIAMロールを作る。信頼ポリシーのsubjectは、`CMS_ADMIN_DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:ref:refs/heads/main`、`CMS_PREVIEW_ROLE_ARN` が `repo:<owner>/<repo>:pull_request`、`STAGING_DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:environment:staging`、`PRODUCTION_DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:environment:production`。
 - 各ロールの権限は、自分のプレフィックスへの `s3:ListBucket`（`s3:prefix` 条件）と `s3:GetObject`・`PutObject`・`DeleteObject`。サイトのロールにはさらに、ディストリビューションへの `cloudfront:CreateInvalidation`。
+
+### キャッシュ
+
+`site-deploy.yml` は、アップロード時に `Cache-Control` を付ける。ハッシュ付きのアセットのディレクトリ（入力 `immutable-assets-dir`、既定 `_astro`）は `public, max-age=31536000, immutable`、それ以外（HTML、管理画面を含む）は `no-cache`（ブラウザは毎回確認する）。CloudFrontのキャッシュは、productionならリリースのたびに `/*` を無効化する。古いハッシュのアセットは削除しない（HTMLが参照するのは新しいハッシュだけなので、残っても表示には影響しない）。
 
 ### workflowの呼び出し
 
