@@ -28,11 +28,11 @@ TerraformをGitHub Actionsから動かすために必要な、次のリソース
 
 3. このモジュールのstateを共有バケットへ移す（下の「stateの移行」）。
 
-4. 出力 `github_variables` の3つの値を、サイトリポジトリのActionsのリポジトリ変数に設定する（`TERRAFORM_PLAN_ROLE_ARN` `TERRAFORM_APPLY_ROLE_ARN` `TERRAFORM_STATE_BUCKET`）。
+4. 出力 `github_variables` の3つの値を、サイトリポジトリの `config/deploy.env` に書く（`TERRAFORM_PLAN_ROLE_ARN` `TERRAFORM_APPLY_ROLE_ARN` `TERRAFORM_STATE_BUCKET`）。
 
 5. サイトリポジトリに `terraform/terraform.tfvars` と、plan・applyの呼び出しworkflowを置く（[../../README.md](../../README.md) の「GitHub Actionsから実行する」）。PRにplanが投稿され、`main` へのマージでapplyされる。
 
-6. applyの出力 `github_variables` を、サイトリポジトリのActionsのリポジトリ変数に設定する（`AWS_REGION` `S3_BUCKET` `CMS_DOMAIN` `CMS_ADMIN_DEPLOY_ROLE_ARN` `CMS_PREVIEW_ROLE_ARN` `STAGING_*` `PRODUCTION_*`）。
+6. applyの出力 `github_variables` は、`terraform-apply.yml` の `env-file` 入力で `config/deploy.env` へ書かれる（更新のPRをマージする）。
 
 ## stateの移行
 
