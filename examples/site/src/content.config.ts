@@ -1,6 +1,7 @@
 import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { z } from 'astro/zod';
+import { jstDate } from 'static-site-cms/published';
 
 const image = z.string().optional();
 
@@ -41,8 +42,8 @@ const news = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/news' }),
   schema: z.object({
     title: z.string(),
-    date: z.coerce.date(),
-    publishDate: z.coerce.date().optional(),
+    date: jstDate,
+    publishDate: jstDate.optional(),
     image,
   }),
 });
@@ -51,11 +52,11 @@ const events = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/events' }),
   schema: z.object({
     title: z.string(),
-    startDate: z.coerce.date(),
-    endDate: z.coerce.date().optional(),
+    startDate: jstDate,
+    endDate: jstDate.optional(),
     venue: z.string().optional(),
     applyUrl: z.string().optional(),
-    publishDate: z.coerce.date().optional(),
+    publishDate: jstDate.optional(),
     image,
   }),
 });
@@ -65,7 +66,7 @@ const lp = defineCollection({
   schema: z.object({
     title: z.string(),
     description: z.string().optional(),
-    publishDate: z.coerce.date().optional(),
+    publishDate: jstDate.optional(),
     blocks: z.array(blocks),
   }),
 });
