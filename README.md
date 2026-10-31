@@ -24,7 +24,7 @@ Git をバックエンドにした広報向け静的サイト（お知らせ・�
 ```
 package.json            # astro と static-site-cms（コミット固定のgit依存）
 astro.config.mjs        # integrations: [staticSiteCms()]
-cms.config.json         # { "repo": "owner/name", "branch": "main", "baseUrl": "OAuth中継のURL(任意)" }
+cms.config.json         # { "repo": "owner/name", "branch": "main", "baseUrl": "OAuth中継のURL(任意)", "timeZone": "Asia/Tokyo" }
 cms/collections.yml     # 管理画面のコレクション定義
 src/                    # content.config.ts・layouts・components・pages
 src/content/            # news / events / lp
@@ -101,7 +101,7 @@ Terraformを使わない場合は、次を満たすように作る。
 
 ### 公開日時
 
-`static-site-cms/published` の `jstDate` をスキーマの日付項目（`publishDate` など）に使うと、タイムゾーンのない値を日本時間として扱う。YAMLのタイムゾーンなしの日時はUTCとして読まれるため、`jstDate` が9時間戻して補正する。`+09:00` などのオフセット付きの値は、文字列（引用符つき）で書けばそのまま使う。
+`cms.config.json` の `timeZone`（IANAのタイムゾーン名。省略時は `Asia/Tokyo`）が、サイトのローカルタイムのタイムゾーンになる。`static-site-cms/published` の `localDate` をスキーマの日付項目（`publishDate` など）に使うと、オフセットのない値（`2026-10-31T11:16:00`、`2026-10-31`）をこのタイムゾーンのローカルタイムとして扱う。YAMLのオフセットなしの日時はUTCとして読まれるため、`localDate` が補正する（夏時間も考慮する）。`+09:00` などのオフセット付きの値は、文字列（引用符つき）で書けばそのまま使う。`formatDate` の表示も同じタイムゾーンで行う。
 
 `isPublished` はビルド時に一度だけ判定する。公開日時を過ぎた後に再ビルドしないと、ページは出力されない。`site-deploy.yml` は `target: staging` のビルドで環境変数 `SHOW_UNPUBLISHED=1` を渡し、公開日時にかかわらず全件を出力する（productionは公開日時で絞る）。
 
