@@ -48,7 +48,7 @@ CMSとstagingのBasic認証（既定で有効）のパスワードは、環境�
 
 ユーザー名は `cms.basic_auth_user`（既定 `cms`）、`staging.basic_auth_user`（既定 `staging`）。
 
-適用後、出力 `github_variables` の値をサイトリポジトリのActionsのリポジトリ変数に設定する。
+適用後の出力 `github_variables` は、サイトリポジトリの `config/deploy.env` に書く（`terraform-apply.yml` の `env-file` 入力で、更新のPRを自動で作らせられる。[ルートのREADME](../README.md#配信基盤の契約envファイル)）。
 
 ### staging・productionの反映
 
@@ -78,9 +78,6 @@ jobs:
       id-token: write
       pull-requests: write
     uses: vlstyle/static-site-cms/.github/workflows/terraform-plan.yml@<コミットハッシュ>
-    with:
-      role-arn: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
-      state-bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
     secrets:
       basic-auth-password: ${{ secrets.BASIC_AUTH_PASSWORD }}
 ```
@@ -96,12 +93,12 @@ on:
 jobs:
   apply:
     permissions:
-      contents: read
+      contents: write
       id-token: write
+      pull-requests: write
     uses: vlstyle/static-site-cms/.github/workflows/terraform-apply.yml@<コミットハッシュ>
     with:
-      role-arn: ${{ vars.TERRAFORM_APPLY_ROLE_ARN }}
-      state-bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
+      env-file: config/deploy.env
     secrets:
       basic-auth-password: ${{ secrets.BASIC_AUTH_PASSWORD }}
 ```
@@ -110,14 +107,16 @@ jobs:
 
 | 入力 | 既定値 | 内容 |
 |---|---|---|
-| `role-arn` | （必須） | plan用（読み取り専用 + `terraform/` のstateの読み書き）・apply用のIAMロール |
-| `state-bucket` | （必須） | 共有のS3バケット（`terraform/` にstateを置く） |
+| `config-file` | `config/deploy.env` | `role-arn`・`state-bucket` が空のとき、`TERRAFORM_PLAN_ROLE_ARN`（applyは `TERRAFORM_APPLY_ROLE_ARN`）と `TERRAFORM_STATE_BUCKET` を読むenvファイル |
+| `role-arn` | envファイルの値 | plan用（読み取り専用 + `terraform/` のstateの読み書き）・apply用のIAMロール |
+| `state-bucket` | envファイルの値 | 共有のS3バケット（`terraform/` にstateを置く） |
+| `env-file` | （空） | applyのみ。出力 `github_variables` をこのenvファイルへ書き、変更があれば `terraform/update-deploy-env` ブランチでPRを作る。呼び出し元のジョブに `contents: write`・`pull-requests: write` が必要。リポジトリの設定「Allow GitHub Actions to create and approve pull requests」を有効にする。Actionsが作ったPRではほかのworkflowが動かないので、必須チェックを付けている場合は注意 |
 | `state-key` | `terraform/stack.tfstate` | stateのキー |
 | `aws-region` | `ap-northeast-1` | メインのリージョン |
 | `tfvars-file` | `terraform/terraform.tfvars` | 呼び出し側リポジトリ内のtfvars |
 | `terraform-version` | `1.16.4` | |
 
-planの結果はPRのコメントに投稿され（同じPRでは更新される）、applyは `main` へのpushで実行される。
+planの結果はPRのコメントに投稿され（同じPRでは更新される）、applyは `main` へのpushで実行される。envファイルは `terraform/**` の外に置くこと（更新のPRのマージでapplyが再実行されないように）。
 
 ## 前提と制限
 

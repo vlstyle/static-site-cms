@@ -3,23 +3,29 @@ name: Site preview
 on:
   workflow_call:
     inputs:
+      config-file:
+        description: "配信先の情報を書いたenvファイル（KEY=value）。キーの一覧はREADMEの「配信基盤の契約」を参照"
+        type: string
+        default: config/deploy.env
       preview-bucket:
+        description: "envファイルの S3_BUCKET より優先するバケット名"
         type: string
-        required: true
+        default: ""
       cms-domain:
-        description: "cms-hostingモジュールのドメイン。https://<cms-domain>/preview/pr-<番号>/ に配信する（サイトのテンプレートがbase対応であること）"
+        description: "envファイルの CMS_DOMAIN より優先するドメイン。https://<cms-domain>/preview/pr-<番号>/ に配信する（サイトのテンプレートがbase対応であること）"
         type: string
-        required: true
+        default: ""
       preview-prefix:
-        description: "cms-hostingのプレフィックス。プレビューは <prefix>/preview/pr-<番号>/ に置く"
+        description: "envファイルの CMS_PREFIX より優先するプレフィックス（既定 cms）。プレビューは <prefix>/preview/pr-<番号>/ に置く"
         type: string
-        default: cms
+        default: ""
       aws-region:
         type: string
-        default: ap-northeast-1
+        default: ""
       role-arn:
+        description: "envファイルの CMS_PREVIEW_ROLE_ARN より優先するロール。空でenvファイルにもなければ何もしない"
         type: string
-        required: true
+        default: ""
 
 permissions:
   contents: read
@@ -27,15 +33,50 @@ permissions:
   pull-requests: write
 
 jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      bucket: ${{ steps.c.outputs.bucket }}
+      domain: ${{ steps.c.outputs.domain }}
+      prefix: ${{ steps.c.outputs.prefix }}
+      region: ${{ steps.c.outputs.region }}
+      role_arn: ${{ steps.c.outputs.role_arn }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: c
+        env:
+          CONFIG_FILE: ${{ inputs.config-file }}
+          IN_BUCKET: ${{ inputs.preview-bucket }}
+          IN_DOMAIN: ${{ inputs.cms-domain }}
+          IN_PREFIX: ${{ inputs.preview-prefix }}
+          IN_REGION: ${{ inputs.aws-region }}
+          IN_ROLE_ARN: ${{ inputs.role-arn }}
+        run: |
+          json='{}'
+          if [ -f "$CONFIG_FILE" ]; then
+            json=$(jq -Rn '[inputs | select(test("^[A-Z0-9_]+=")) | capture("^(?<k>[A-Z0-9_]+)=(?<v>.*)$") | {key: .k, value: .v}] | from_entries' "$CONFIG_FILE")
+          fi
+          get() { jq -r --arg k "$1" '.[$k] // empty' <<<"$json"; }
+          prefix="${IN_PREFIX:-$(get CMS_PREFIX)}"
+          region="${IN_REGION:-$(get AWS_REGION)}"
+          {
+            echo "bucket=${IN_BUCKET:-$(get S3_BUCKET)}"
+            echo "domain=${IN_DOMAIN:-$(get CMS_DOMAIN)}"
+            echo "prefix=${prefix:-cms}"
+            echo "region=${region:-ap-northeast-1}"
+            echo "role_arn=${IN_ROLE_ARN:-$(get CMS_PREVIEW_ROLE_ARN)}"
+          } >> "$GITHUB_OUTPUT"
+
   deploy:
-    if: github.event.action != 'closed' && inputs.role-arn != ''
+    needs: config
+    if: github.event.action != 'closed' && needs.config.outputs.role_arn != ''
     runs-on: ubuntu-latest
     steps:
       - name: Resolve preview location
         id: loc
         env:
-          CMS_DOMAIN: ${{ inputs.cms-domain }}
-          PREFIX: ${{ inputs.preview-prefix }}
+          CMS_DOMAIN: ${{ needs.config.outputs.domain }}
+          PREFIX: ${{ needs.config.outputs.prefix }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           {
@@ -57,9 +98,12 @@ jobs:
           BASE_PATH: ${{ steps.loc.outputs.base_path }}
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ inputs.role-arn }}
-          aws-region: ${{ inputs.aws-region }}
-      - run: aws s3 sync dist "s3://${{ inputs.preview-bucket }}/${{ steps.loc.outputs.prefix }}/" --delete
+          role-to-assume: ${{ needs.config.outputs.role_arn }}
+          aws-region: ${{ needs.config.outputs.region }}
+      - env:
+          BUCKET: ${{ needs.config.outputs.bucket }}
+          PREFIX: ${{ steps.loc.outputs.prefix }}
+        run: aws s3 sync dist "s3://${BUCKET}/${PREFIX}/" --delete
       - run: |
           gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body "プレビュー: ${URL} （最新コミット: ${SHA::7}、閲覧にはBasic認証が必要です）"
         env:
@@ -69,16 +113,17 @@ jobs:
           URL: ${{ steps.loc.outputs.url }}
 
   cleanup:
-    if: github.event.action == 'closed' && inputs.role-arn != ''
+    needs: config
+    if: github.event.action == 'closed' && needs.config.outputs.role_arn != ''
     runs-on: ubuntu-latest
     steps:
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ inputs.role-arn }}
-          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: ${{ needs.config.outputs.role_arn }}
+          aws-region: ${{ needs.config.outputs.region }}
       - name: Delete preview
         env:
-          PREFIX: ${{ inputs.preview-prefix }}
-          BUCKET: ${{ inputs.preview-bucket }}
+          PREFIX: ${{ needs.config.outputs.prefix }}
+          BUCKET: ${{ needs.config.outputs.bucket }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: aws s3 rm "s3://${BUCKET}/${PREFIX}/preview/pr-${PR_NUMBER}/" --recursive

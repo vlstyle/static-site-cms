@@ -3,14 +3,18 @@ name: Terraform plan
 on:
   workflow_call:
     inputs:
+      config-file:
+        description: 配信先の情報を書いたenvファイル（KEY=value）。role-arn・state-bucketが空のとき、TERRAFORM_PLAN_ROLE_ARN と TERRAFORM_STATE_BUCKET を読む
+        type: string
+        default: config/deploy.env
       role-arn:
-        description: plan用のIAMロールのARN（読み取り専用 + stateの読み書き）
+        description: plan用のIAMロールのARN（読み取り専用 + stateの読み書き）。envファイルより優先する
         type: string
-        required: true
+        default: ""
       state-bucket:
-        description: Terraform stateを置くS3バケット名
+        description: Terraform stateを置くS3バケット名。envファイルより優先する
         type: string
-        required: true
+        default: ""
       state-key:
         type: string
         default: terraform/stack.tfstate
@@ -46,9 +50,28 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - id: config
+        env:
+          CONFIG_FILE: ${{ inputs.config-file }}
+          IN_ROLE_ARN: ${{ inputs.role-arn }}
+          IN_STATE_BUCKET: ${{ inputs.state-bucket }}
+        run: |
+          json='{}'
+          if [ -f "$CONFIG_FILE" ]; then
+            json=$(jq -Rn '[inputs | select(test("^[A-Z0-9_]+=")) | capture("^(?<k>[A-Z0-9_]+)=(?<v>.*)$") | {key: .k, value: .v}] | from_entries' "$CONFIG_FILE")
+          fi
+          get() { jq -r --arg k "$1" '.[$k] // empty' <<<"$json"; }
+          role="${IN_ROLE_ARN:-$(get TERRAFORM_PLAN_ROLE_ARN)}"
+          bucket="${IN_STATE_BUCKET:-$(get TERRAFORM_STATE_BUCKET)}"
+          if [ -z "$role" ] || [ -z "$bucket" ]; then
+            echo "role-arn と state-bucket を入力するか、${CONFIG_FILE} に TERRAFORM_PLAN_ROLE_ARN と TERRAFORM_STATE_BUCKET を書いてください" >&2
+            exit 1
+          fi
+          echo "role_arn=$role" >> "$GITHUB_OUTPUT"
+          echo "state_bucket=$bucket" >> "$GITHUB_OUTPUT"
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ inputs.role-arn }}
+          role-to-assume: ${{ steps.config.outputs.role_arn }}
           aws-region: ${{ inputs.aws-region }}
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
@@ -68,7 +91,7 @@ jobs:
       - name: Terraform init
         run: |
           terraform -chdir="$STACK_DIR" init -input=false \
-            -backend-config="bucket=${{ inputs.state-bucket }}" \
+            -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" \
             -backend-config="key=${{ inputs.state-key }}" \
             -backend-config="region=${{ inputs.aws-region }}" \
             -backend-config="use_lockfile=true"

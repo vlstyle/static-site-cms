@@ -3,10 +3,18 @@ name: Site deploy
 on:
   workflow_call:
     inputs:
-      site-url:
-        description: "ビルドに渡すSITE_URL（canonical URLなどに使う）"
+      config-file:
+        description: "配信先の情報を書いたenvファイル（KEY=value）。キーの一覧はREADMEの「配信基盤の契約」を参照"
+        type: string
+        default: config/deploy.env
+      target:
+        description: "staging または production。指定すると、envファイルの <TARGET>_* の値を使い、Environment名もこの値になる"
         type: string
         default: ""
+      deploy-admin:
+        description: "trueにすると、管理画面を <CMS_PREFIX>/admin/ へ配信する（envファイルの CMS_* を使う）"
+        type: boolean
+        default: false
       ref:
         description: "ビルドするコミット。空なら呼び出し元のコミット"
         type: string
@@ -16,36 +24,37 @@ on:
         type: string
         default: ""
       environment:
-        description: "サイトを配信するジョブのEnvironment名。OIDCのsubjectが repo:<owner>/<repo>:environment:<名前> になる"
+        description: "envファイルより優先するEnvironment名"
+        type: string
+        default: ""
+      site-url:
+        description: "envファイルより優先するSITE_URL"
         type: string
         default: ""
       aws-role-arn:
-        description: "サイトを配信するロール。空ならサイトの配信はしない"
+        description: "envファイルより優先するデプロイ用ロール。空でenvファイルにもなければサイトの配信はしない"
         type: string
         default: ""
       aws-region:
         type: string
-        default: ap-northeast-1
+        default: ""
       s3-bucket:
         type: string
         default: ""
       s3-prefix:
-        description: "バケット内の配信先プレフィックス（例: staging、production）"
         type: string
         default: ""
       cloudfront-distribution-id:
         type: string
         default: ""
       admin-s3-bucket:
-        description: "管理画面をS3へ配信する（cms-hostingモジュール）。指定したときだけ実行する"
         type: string
         default: ""
       admin-s3-prefix:
-        description: "cms-hostingのプレフィックス。管理画面は <prefix>/admin/ に置く"
         type: string
-        default: cms
+        default: ""
       admin-site-url:
-        description: "管理画面のビルドに渡すSITE_URL。空ならsite-url"
+        description: "管理画面のビルドに渡すSITE_URL。空なら https://<CMS_DOMAIN>、それもなければsite-url"
         type: string
         default: ""
       admin-role-arn:
@@ -64,6 +73,83 @@ permissions:
   deployments: read
 
 jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.c.outputs.environment }}
+      site_url: ${{ steps.c.outputs.site_url }}
+      role_arn: ${{ steps.c.outputs.role_arn }}
+      region: ${{ steps.c.outputs.region }}
+      bucket: ${{ steps.c.outputs.bucket }}
+      prefix: ${{ steps.c.outputs.prefix }}
+      distribution_id: ${{ steps.c.outputs.distribution_id }}
+      admin_bucket: ${{ steps.c.outputs.admin_bucket }}
+      admin_prefix: ${{ steps.c.outputs.admin_prefix }}
+      admin_role_arn: ${{ steps.c.outputs.admin_role_arn }}
+      admin_site_url: ${{ steps.c.outputs.admin_site_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: c
+        env:
+          CONFIG_FILE: ${{ inputs.config-file }}
+          TARGET: ${{ inputs.target }}
+          DEPLOY_ADMIN: ${{ inputs.deploy-admin }}
+          IN_ENVIRONMENT: ${{ inputs.environment }}
+          IN_SITE_URL: ${{ inputs.site-url }}
+          IN_ROLE_ARN: ${{ inputs.aws-role-arn }}
+          IN_REGION: ${{ inputs.aws-region }}
+          IN_BUCKET: ${{ inputs.s3-bucket }}
+          IN_PREFIX: ${{ inputs.s3-prefix }}
+          IN_DISTRIBUTION_ID: ${{ inputs.cloudfront-distribution-id }}
+          IN_ADMIN_BUCKET: ${{ inputs.admin-s3-bucket }}
+          IN_ADMIN_PREFIX: ${{ inputs.admin-s3-prefix }}
+          IN_ADMIN_SITE_URL: ${{ inputs.admin-site-url }}
+          IN_ADMIN_ROLE_ARN: ${{ inputs.admin-role-arn }}
+        run: |
+          json='{}'
+          if [ -f "$CONFIG_FILE" ]; then
+            json=$(jq -Rn '[inputs | select(test("^[A-Z0-9_]+=")) | capture("^(?<k>[A-Z0-9_]+)=(?<v>.*)$") | {key: .k, value: .v}] | from_entries' "$CONFIG_FILE")
+          fi
+          get() { jq -r --arg k "$1" '.[$k] // empty' <<<"$json"; }
+          upper=$(printf '%s' "$TARGET" | tr '[:lower:]' '[:upper:]')
+          tget() { if [ -n "$upper" ]; then get "${upper}_$1"; fi; }
+
+          environment="${IN_ENVIRONMENT:-$TARGET}"
+          site_url="${IN_SITE_URL:-$(tget SITE_URL)}"
+          role_arn="${IN_ROLE_ARN:-$(tget DEPLOY_ROLE_ARN)}"
+          region="${IN_REGION:-$(get AWS_REGION)}"
+          region="${region:-ap-northeast-1}"
+          bucket="${IN_BUCKET:-$(get S3_BUCKET)}"
+          prefix="${IN_PREFIX:-$(tget PREFIX)}"
+          prefix="${prefix:-$TARGET}"
+          distribution_id="${IN_DISTRIBUTION_ID:-$(tget CLOUDFRONT_DISTRIBUTION_ID)}"
+
+          admin_bucket=""
+          admin_role_arn="${IN_ADMIN_ROLE_ARN:-$(get CMS_ADMIN_DEPLOY_ROLE_ARN)}"
+          if [ "$DEPLOY_ADMIN" = true ] || [ -n "$IN_ADMIN_BUCKET" ]; then
+            admin_bucket="${IN_ADMIN_BUCKET:-$bucket}"
+            if [ -z "$admin_role_arn" ]; then admin_bucket=""; fi
+          fi
+          admin_prefix="${IN_ADMIN_PREFIX:-$(get CMS_PREFIX)}"
+          admin_prefix="${admin_prefix:-cms}"
+          cms_domain=$(get CMS_DOMAIN)
+          admin_site_url="${IN_ADMIN_SITE_URL:-${cms_domain:+https://$cms_domain}}"
+          admin_site_url="${admin_site_url:-$site_url}"
+
+          {
+            echo "environment=$environment"
+            echo "site_url=$site_url"
+            echo "role_arn=$role_arn"
+            echo "region=$region"
+            echo "bucket=$bucket"
+            echo "prefix=$prefix"
+            echo "distribution_id=$distribution_id"
+            echo "admin_bucket=$admin_bucket"
+            echo "admin_prefix=$admin_prefix"
+            echo "admin_role_arn=$admin_role_arn"
+            echo "admin_site_url=$admin_site_url"
+          } >> "$GITHUB_OUTPUT"
+
   resolve:
     runs-on: ubuntu-latest
     outputs:
@@ -93,8 +179,8 @@ jobs:
           echo "ビルドするコミット: ${ref:-$GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
 
   build:
-    needs: resolve
-    if: inputs.aws-role-arn != ''
+    needs: [config, resolve]
+    if: needs.config.outputs.role_arn != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -107,16 +193,16 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          SITE_URL: ${{ inputs.site-url }}
+          SITE_URL: ${{ needs.config.outputs.site_url }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist
           path: dist
 
   deploy-aws:
-    needs: build
+    needs: [config, build]
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ needs.config.outputs.environment }}
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -124,12 +210,18 @@ jobs:
           path: dist
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ inputs.aws-role-arn }}
-          aws-region: ${{ inputs.aws-region }}
-      - run: aws s3 sync dist "s3://${{ inputs.s3-bucket }}/${{ inputs.s3-prefix }}/" --delete
-      - run: aws cloudfront create-invalidation --distribution-id "${{ inputs.cloudfront-distribution-id }}" --paths "/*"
+          role-to-assume: ${{ needs.config.outputs.role_arn }}
+          aws-region: ${{ needs.config.outputs.region }}
+      - env:
+          BUCKET: ${{ needs.config.outputs.bucket }}
+          PREFIX: ${{ needs.config.outputs.prefix }}
+          DISTRIBUTION_ID: ${{ needs.config.outputs.distribution_id }}
+        run: |
+          aws s3 sync dist "s3://${BUCKET}/${PREFIX}/" --delete
+          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*"
 
   deploy-admin:
+    needs: config
     if: inputs.admin-rsync-target != ''
     runs-on: ${{ fromJSON(inputs.admin-runner-labels) }}
     steps:
@@ -141,11 +233,12 @@ jobs:
       - run: npm ci
       - run: npm run build:admin
         env:
-          SITE_URL: ${{ inputs.admin-site-url || inputs.site-url }}
+          SITE_URL: ${{ needs.config.outputs.admin_site_url }}
       - run: rsync -a --delete dist-admin/ "${{ inputs.admin-rsync-target }}"
 
   deploy-admin-s3:
-    if: inputs.admin-s3-bucket != ''
+    needs: config
+    if: needs.config.outputs.admin_bucket != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -156,10 +249,14 @@ jobs:
       - run: npm ci
       - run: npm run build:admin
         env:
-          SITE_URL: ${{ inputs.admin-site-url || inputs.site-url }}
+          SITE_URL: ${{ needs.config.outputs.admin_site_url }}
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ inputs.admin-role-arn }}
-          aws-region: ${{ inputs.aws-region }}
-      - run: aws s3 sync dist-admin "s3://${{ inputs.admin-s3-bucket }}/${{ inputs.admin-s3-prefix }}/admin/" --delete
-      - run: aws s3 cp dist-admin/config.yml "s3://${{ inputs.admin-s3-bucket }}/${{ inputs.admin-s3-prefix }}/admin/config.yml" --content-type "text/yaml; charset=utf-8"
+          role-to-assume: ${{ needs.config.outputs.admin_role_arn }}
+          aws-region: ${{ needs.config.outputs.region }}
+      - env:
+          BUCKET: ${{ needs.config.outputs.admin_bucket }}
+          PREFIX: ${{ needs.config.outputs.admin_prefix }}
+        run: |
+          aws s3 sync dist-admin "s3://${BUCKET}/${PREFIX}/admin/" --delete
+          aws s3 cp dist-admin/config.yml "s3://${BUCKET}/${PREFIX}/admin/config.yml" --content-type "text/yaml; charset=utf-8"
