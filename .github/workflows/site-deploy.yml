@@ -87,6 +87,7 @@ jobs:
       admin_prefix: ${{ steps.c.outputs.admin_prefix }}
       admin_role_arn: ${{ steps.c.outputs.admin_role_arn }}
       admin_site_url: ${{ steps.c.outputs.admin_site_url }}
+      admin_distribution_id: ${{ steps.c.outputs.admin_distribution_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: c
@@ -148,6 +149,7 @@ jobs:
             echo "admin_prefix=$admin_prefix"
             echo "admin_role_arn=$admin_role_arn"
             echo "admin_site_url=$admin_site_url"
+            echo "admin_distribution_id=$(get CMS_CLOUDFRONT_DISTRIBUTION_ID)"
           } >> "$GITHUB_OUTPUT"
 
   resolve:
@@ -257,6 +259,10 @@ jobs:
       - env:
           BUCKET: ${{ needs.config.outputs.admin_bucket }}
           PREFIX: ${{ needs.config.outputs.admin_prefix }}
+          DISTRIBUTION_ID: ${{ needs.config.outputs.admin_distribution_id }}
         run: |
           aws s3 sync dist-admin "s3://${BUCKET}/${PREFIX}/admin/" --delete
           aws s3 cp dist-admin/config.yml "s3://${BUCKET}/${PREFIX}/admin/config.yml" --content-type "text/yaml; charset=utf-8"
+          if [ -n "$DISTRIBUTION_ID" ]; then
+            aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/admin/*" >/dev/null
+          fi

@@ -31,18 +31,45 @@ resource "aws_cloudfront_origin_access_control" "this" {
   signing_protocol                  = "sigv4"
 }
 
-resource "aws_cloudfront_response_headers_policy" "noindex" {
-  count = var.noindex ? 1 : 0
+data "aws_cloudfront_cache_policy" "optimized" {
+  name = "Managed-CachingOptimized"
+}
+
+data "aws_cloudfront_cache_policy" "disabled" {
+  name = "Managed-CachingDisabled"
+}
+
+resource "aws_cloudfront_response_headers_policy" "this" {
+  count = var.noindex || !var.caching_enabled ? 1 : 0
 
   name = "${var.name}-noindex"
 
   custom_headers_config {
-    items {
-      header   = "X-Robots-Tag"
-      value    = "noindex, nofollow"
-      override = true
+    dynamic "items" {
+      for_each = var.noindex ? [1] : []
+
+      content {
+        header   = "X-Robots-Tag"
+        value    = "noindex, nofollow"
+        override = true
+      }
+    }
+
+    dynamic "items" {
+      for_each = var.caching_enabled ? [] : [1]
+
+      content {
+        header   = "Cache-Control"
+        value    = "no-cache"
+        override = true
+      }
     }
   }
+}
+
+moved {
+  from = aws_cloudfront_response_headers_policy.noindex
+  to   = aws_cloudfront_response_headers_policy.this
 }
 
 resource "aws_acm_certificate" "this" {
@@ -103,8 +130,8 @@ resource "aws_cloudfront_distribution" "this" {
     allowed_methods            = ["GET", "HEAD"]
     cached_methods             = ["GET", "HEAD"]
     compress                   = true
-    cache_policy_id            = var.caching_enabled ? "658327ea-f89d-4fab-a63d-7e88639e58f6" : "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
-    response_headers_policy_id = var.noindex ? aws_cloudfront_response_headers_policy.noindex[0].id : null
+    cache_policy_id            = var.caching_enabled ? data.aws_cloudfront_cache_policy.optimized.id : data.aws_cloudfront_cache_policy.disabled.id
+    response_headers_policy_id = length(aws_cloudfront_response_headers_policy.this) > 0 ? aws_cloudfront_response_headers_policy.this[0].id : null
 
     function_association {
       event_type   = "viewer-request"

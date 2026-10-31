@@ -34,7 +34,7 @@ variable "price_class" {
 }
 
 variable "caching_enabled" {
-  description = "falseにするとキャッシュを無効にする（管理画面のように更新をすぐ反映したい場合）。"
+  description = "trueならCachingOptimized、falseならCachingDisabled（CloudFrontのキャッシュなし）にする。falseのときは、ブラウザにもキャッシュさせないよう Cache-Control: no-cache を付ける。"
   type        = bool
   default     = true
 }

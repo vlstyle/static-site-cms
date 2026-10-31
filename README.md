@@ -80,6 +80,7 @@ Rulesetの必須チェック名は、呼び出し側のジョブIDを前置し�
 | `S3_BUCKET` | 共有のS3バケット | deploy・preview |
 | `CMS_DOMAIN` | 管理画面とプレビューのドメイン | preview・deploy（管理画面） |
 | `CMS_ADMIN_DEPLOY_ROLE_ARN` | 管理画面を配置するロール | deploy（`deploy-admin: true`） |
+| `CMS_CLOUDFRONT_DISTRIBUTION_ID` | 管理画面のキャッシュを無効化するディストリビューション。あれば、管理画面の配置後に `/admin/*` を無効化する。ロールに `cloudfront:CreateInvalidation` が必要 | deploy（`deploy-admin: true`） |
 | `CMS_PREVIEW_ROLE_ARN` | プレビューを配置するロール | preview |
 | `STAGING_SITE_URL` `PRODUCTION_SITE_URL` | ビルドに渡す `SITE_URL` | deploy（`target`） |
 | `STAGING_DEPLOY_ROLE_ARN` `PRODUCTION_DEPLOY_ROLE_ARN` | サイトを配置するロール | deploy（`target`） |
