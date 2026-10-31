@@ -99,6 +99,10 @@ Terraformを使わない場合は、次を満たすように作る。
 - GitHub ActionsのOIDCで引き受けるIAMロールを作る。信頼ポリシーのsubjectは、`CMS_ADMIN_DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:ref:refs/heads/main`、`CMS_PREVIEW_ROLE_ARN` が `repo:<owner>/<repo>:pull_request`、`STAGING_DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:environment:staging`、`PRODUCTION_DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:environment:production`。
 - 各ロールの権限は、自分のプレフィックスへの `s3:ListBucket`（`s3:prefix` 条件）と `s3:GetObject`・`PutObject`・`DeleteObject`。サイトのロールにはさらに、ディストリビューションへの `cloudfront:CreateInvalidation`。
 
+### キャッシュ
+
+`site-deploy.yml` は、アップロード時に `Cache-Control` を付ける。ハッシュ付きのアセットのディレクトリ（入力 `immutable-assets-dir`、既定 `_astro`）は `public, max-age=31536000, immutable`、それ以外（HTML、管理画面を含む）は `no-cache`（ブラウザは毎回確認する）。CloudFrontのキャッシュは、productionならリリースのたびに `/*` を無効化する。古いハッシュのアセットは削除しない（HTMLが参照するのは新しいハッシュだけなので、残っても表示には影響しない）。
+
 ### workflowの呼び出し
 
 ```yaml

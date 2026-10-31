@@ -103,7 +103,7 @@ jobs:
       - env:
           BUCKET: ${{ needs.config.outputs.bucket }}
           PREFIX: ${{ steps.loc.outputs.prefix }}
-        run: aws s3 sync dist "s3://${BUCKET}/${PREFIX}/" --delete
+        run: aws s3 sync dist "s3://${BUCKET}/${PREFIX}/" --delete --cache-control "no-cache"
       - run: |
           gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body "プレビュー: ${URL} （最新コミット: ${SHA::7}、閲覧にはBasic認証が必要です）"
         env:
