@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       sha:
-        description: "本番に出すコミットのSHA（7桁または40桁の小文字）。7桁は40桁に補完し、複数のコミットに一致する場合はデフォルトブランチの履歴で最も新しいものを採用する。空ならデフォルトブランチの最新コミット"
+        description: "本番に出すコミットのSHA（先頭7桁または40桁の小文字）。7桁は先頭が一致するコミットの40桁に補完し、複数のコミットに一致する場合はデフォルトブランチの履歴で最も新しいものを採用する。空ならデフォルトブランチの最新コミット"
         type: string
         default: ""
 
@@ -34,7 +34,7 @@ jobs:
             full=$(git rev-parse "origin/${DEFAULT_BRANCH}")
             note="sha が未入力のため、デフォルトブランチ（${DEFAULT_BRANCH}）の最新コミットを採用した。"
           else
-            [[ "$INPUT_SHA" =~ ^([0-9a-f]{7}|[0-9a-f]{40})$ ]] || fail "sha は7桁または40桁の小文字の16進数で指定してください: ${INPUT_SHA}"
+            [[ "$INPUT_SHA" =~ ^([0-9a-f]{7}|[0-9a-f]{40})$ ]] || fail "sha は先頭7桁または40桁の小文字の16進数で指定してください: ${INPUT_SHA}"
             if [ "${#INPUT_SHA}" -eq 40 ]; then
               candidates="$INPUT_SHA"
             else
@@ -51,7 +51,7 @@ jobs:
             full=$(git rev-list --topo-order "origin/${DEFAULT_BRANCH}" | grep -m1 -Fx "$in_default")
             if [ "$(grep -c . <<<"$in_default")" -gt 1 ]; then
               list=$(for c in $in_default; do git show -s --format='- `%H`（%cI）' "$c"; done)
-              note=$(printf '7桁 `%s` が複数のコミットに一致したため、履歴で最も新しい `%s` を採用した。候補:\n\n%s' "$INPUT_SHA" "$full" "$list")
+              note=$(printf '先頭7桁 `%s` が複数のコミットに一致したため、履歴で最も新しい `%s` を採用した。候補:\n\n%s' "$INPUT_SHA" "$full" "$list")
             fi
           fi
 
