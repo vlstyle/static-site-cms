@@ -69,7 +69,7 @@ const sizeChange = (k) => {
 const noChange = added.length === 0 && removed.length === 0 && changed.length === 0;
 
 const report = [
-  '## ビルド成果物の差分（ベースとの比較）',
+  `## ビルド成果物の差分（${process.env.DIST_DIFF_TITLE || 'ベースとの比較'}）`,
   '',
   noChange
     ? 'ビルド成果物に差分はありません。'

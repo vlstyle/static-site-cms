@@ -120,6 +120,11 @@ jobs:
       sha: ${{ inputs.sha }}
 ```
 
+`PUBLISH_SHA` を変えるPR（`config/production.env` の `PUBLISH_SHA` が、PRのベースブランチと違うPR）では、次のように動く。`PUBLISH_SHA` が未設定の側は、ベースブランチのHEADとして扱う。
+
+- `site-ci.yml` のビルド成果物の差分は、「本番の現在（変更前の `PUBLISH_SHA`）」と「このPRで出すコミット（変更後の `PUBLISH_SHA`）」を、それぞれビルドして比べる（通常のPRは、ベースブランチとPRのマージ結果を比べる）。
+- `site-deploy.yml` の `cms` のプレビューは、PRのマージ結果ではなく、変更後の `PUBLISH_SHA` のコミットをビルドして配置する。`PREVIEW=1` を付けず、`production.env` の `SHOW_UNPUBLISHED` に従って公開日時で絞るので、本番に出るものと同じ内容になる。変更後のコミットがベースブランチに含まれていない場合は、通常のPRと同じ動作になる。
+
 ### 配信基盤が満たす構成
 
 Terraformを使わない場合は、次を満たすように作る。
