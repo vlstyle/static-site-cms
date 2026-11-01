@@ -56,6 +56,9 @@ public/images/
 on:
   pull_request:
     branches: [main]
+permissions:
+  contents: read
+  pull-requests: write
 jobs:
   ci:
     uses: vlstyle/static-site-cms/.github/workflows/site-ci.yml@<コミットハッシュ>
@@ -189,7 +192,7 @@ jobs:
 - テンプレートでは、内部リンクと画像のパスを `withBase()`（`static-site-cms/url`）に通す。外部URL・`#` から始まるリンクはそのまま返る。
 - CMSが保存する本文（Markdown）の `/images/...` や `/events/` のような絶対パスは、描画済みHTMLを `withBaseInHtml()` に通して補正する（スターターの `news/[slug].astro` など）。
 - `cms-check-links <出力ディレクトリ>` が、ビルド結果の内部リンクが `BASE_PATH` で始まり、リンク先が存在するかを検査する。
-- `cms-dist-diff <ベースの出力> <PRの出力> [出力先]` が、2つのビルド成果物を比べ、追加・削除・変更されたファイルの一覧を Job Summary に出し、`report.md` と全差分の `dist.patch` を出力先に書く。ハッシュ付きのファイル名（`name.XXXXXXXX.js`）はハッシュを無視して比較する。`site-ci.yml` は、PRのときにベースブランチもビルドして比較し、Job Summary と artifact（`dist-diff`）に出す。ベースのビルドや比較が失敗しても、CIは失敗させない。コアの参照バージョンの更新やAstroの更新で、成果物が変わるかの確認に使う。
+- `cms-dist-diff <ベースの出力> <PRの出力> [出力先]` が、2つのビルド成果物を比べ、追加・削除・変更されたファイルの一覧を Job Summary に出し、PRにコメントし（`pull-requests: write` が要る）、`report.md` と全差分の `dist.patch` を出力先に書く。ハッシュ付きのファイル名（`name.XXXXXXXX.js`）はハッシュを無視して比較する。`site-ci.yml` は、PRのときにベースブランチもビルドして比較し、Job Summary・PRのコメント（マーカー付きで更新する。呼び出し側に `pull-requests: write` が要る）・artifact（`dist-diff`）に出す。ベースのビルドや比較が失敗しても、CIは失敗させない。コアの参照バージョンの更新やAstroの更新で、成果物が変わるかの確認に使う。
 
 ## 共通設定（`admin/config.base.yml`）
 

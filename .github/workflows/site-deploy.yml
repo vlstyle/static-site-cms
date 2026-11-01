@@ -228,14 +228,23 @@ jobs:
           PREFIX: ${{ needs.config.outputs.prefix }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: aws s3 sync dist "s3://${BUCKET}/${PREFIX}/preview/pr-${PR_NUMBER}/" --delete --cache-control "no-cache"
-      - env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          SHA: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
           URL: ${{ needs.config.outputs.site_url }}/preview/pr-${{ github.event.pull_request.number }}/
-        run: |
-          gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body "プレビュー: ${URL} （最新コミット: ${SHA::7}、閲覧にはBasic認証が必要です）"
+          SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const marker = '<!-- site-preview -->';
+            const body = `${marker}\nプレビュー: ${process.env.URL} （最新コミット: ${process.env.SHA.slice(0, 7)}、閲覧にはBasic認証が必要です）`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.body && c.body.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
 
   cleanup-preview:
     needs: config
