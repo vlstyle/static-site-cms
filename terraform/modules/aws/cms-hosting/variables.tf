@@ -76,14 +76,8 @@ variable "oidc_provider_arn" {
   type        = string
 }
 
-variable "admin_deploy_subjects" {
-  description = "管理画面（admin/）を配置するロールを引き受けられるGitHub OIDCのsubject。空ならロールを作らない。"
-  type        = list(string)
-  default     = []
-}
-
-variable "preview_publisher_subjects" {
-  description = "プレビュー（preview/pr-*）を配置するロールを引き受けられるGitHub OIDCのsubject。空ならロールを作らない。"
+variable "deploy_subjects" {
+  description = "管理画面（admin/）とプレビュー（preview/pr-*）を配置するロールを引き受けられるGitHub OIDCのsubject。空ならロールを作らない。"
   type        = list(string)
   default     = []
 }

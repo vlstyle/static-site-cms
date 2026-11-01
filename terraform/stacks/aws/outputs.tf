@@ -5,10 +5,9 @@ output "env_files" {
       cms = {
         AWS_REGION                 = var.region
         S3_BUCKET                  = var.bucket_name
-        CMS_DOMAIN                 = var.cms.domain
-        DEPLOY_ROLE_ARN            = module.cms[0].admin_deploy_role_arn
+        SITE_URL                   = "https://${var.cms.domain}"
+        DEPLOY_ROLE_ARN            = module.cms[0].deploy_role_arn
         CLOUDFRONT_DISTRIBUTION_ID = module.cms[0].distribution_id
-        PREVIEW_ROLE_ARN           = module.cms[0].preview_publisher_role_arn
       }
     },
     var.staging == null ? {} : {

@@ -200,8 +200,8 @@ resource "aws_route53_record" "aaaa" {
   }
 }
 
-data "aws_iam_policy_document" "admin_trust" {
-  count = length(var.admin_deploy_subjects) > 0 ? 1 : 0
+data "aws_iam_policy_document" "deploy_trust" {
+  count = length(var.deploy_subjects) > 0 ? 1 : 0
 
   statement {
     effect  = "Allow"
@@ -221,23 +221,23 @@ data "aws_iam_policy_document" "admin_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = var.admin_deploy_subjects
+      values   = var.deploy_subjects
     }
   }
 }
 
-resource "aws_iam_role" "admin" {
-  count = length(var.admin_deploy_subjects) > 0 ? 1 : 0
+resource "aws_iam_role" "deploy" {
+  count = length(var.deploy_subjects) > 0 ? 1 : 0
 
-  name               = "github-actions-${var.name}-admin-deploy"
-  assume_role_policy = data.aws_iam_policy_document.admin_trust[0].json
+  name               = "github-actions-${var.name}-deploy"
+  assume_role_policy = data.aws_iam_policy_document.deploy_trust[0].json
 }
 
-data "aws_iam_policy_document" "admin" {
-  count = length(var.admin_deploy_subjects) > 0 ? 1 : 0
+data "aws_iam_policy_document" "deploy" {
+  count = length(var.deploy_subjects) > 0 ? 1 : 0
 
   statement {
-    sid       = "ListAdminPrefix"
+    sid       = "ListDeployPrefixes"
     effect    = "Allow"
     actions   = ["s3:ListBucket"]
     resources = [data.aws_s3_bucket.this.arn]
@@ -245,15 +245,15 @@ data "aws_iam_policy_document" "admin" {
     condition {
       test     = "StringLike"
       variable = "s3:prefix"
-      values   = ["${var.prefix}/admin", "${var.prefix}/admin/*"]
+      values   = ["${var.prefix}/admin", "${var.prefix}/admin/*", "${var.prefix}/preview/pr-*"]
     }
   }
 
   statement {
-    sid       = "WriteAdminObjects"
+    sid       = "WriteDeployObjects"
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    resources = ["${data.aws_s3_bucket.this.arn}/${var.prefix}/admin/*"]
+    resources = ["${data.aws_s3_bucket.this.arn}/${var.prefix}/admin/*", "${data.aws_s3_bucket.this.arn}/${var.prefix}/preview/pr-*"]
   }
 
   statement {
@@ -264,75 +264,10 @@ data "aws_iam_policy_document" "admin" {
   }
 }
 
-resource "aws_iam_role_policy" "admin" {
-  count = length(var.admin_deploy_subjects) > 0 ? 1 : 0
+resource "aws_iam_role_policy" "deploy" {
+  count = length(var.deploy_subjects) > 0 ? 1 : 0
 
-  name   = "${var.name}-admin-deploy"
-  role   = aws_iam_role.admin[0].id
-  policy = data.aws_iam_policy_document.admin[0].json
-}
-
-data "aws_iam_policy_document" "preview_trust" {
-  count = length(var.preview_publisher_subjects) > 0 ? 1 : 0
-
-  statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-
-    principals {
-      type        = "Federated"
-      identifiers = [var.oidc_provider_arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:sub"
-      values   = var.preview_publisher_subjects
-    }
-  }
-}
-
-resource "aws_iam_role" "preview" {
-  count = length(var.preview_publisher_subjects) > 0 ? 1 : 0
-
-  name               = "github-actions-${var.name}-preview-publisher"
-  assume_role_policy = data.aws_iam_policy_document.preview_trust[0].json
-}
-
-data "aws_iam_policy_document" "preview" {
-  count = length(var.preview_publisher_subjects) > 0 ? 1 : 0
-
-  statement {
-    sid       = "ListPreviewPrefix"
-    effect    = "Allow"
-    actions   = ["s3:ListBucket"]
-    resources = [data.aws_s3_bucket.this.arn]
-
-    condition {
-      test     = "StringLike"
-      variable = "s3:prefix"
-      values   = ["${var.prefix}/preview/pr-*"]
-    }
-  }
-
-  statement {
-    sid       = "WritePreviewObjects"
-    effect    = "Allow"
-    actions   = ["s3:PutObject", "s3:DeleteObject"]
-    resources = ["${data.aws_s3_bucket.this.arn}/${var.prefix}/preview/pr-*"]
-  }
-}
-
-resource "aws_iam_role_policy" "preview" {
-  count = length(var.preview_publisher_subjects) > 0 ? 1 : 0
-
-  name   = "${var.name}-preview-publisher"
-  role   = aws_iam_role.preview[0].id
-  policy = data.aws_iam_policy_document.preview[0].json
+  name   = "${var.name}-deploy"
+  role   = aws_iam_role.deploy[0].id
+  policy = data.aws_iam_policy_document.deploy[0].json
 }
