@@ -19,6 +19,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
       - env:
           GH_TOKEN: ${{ github.token }}
           INPUT_SHA: ${{ inputs.sha }}
@@ -92,6 +97,18 @@ jobs:
               fi
             fi
           } > "$RUNNER_TEMP/body.md"
+
+          git worktree add --detach "$RUNNER_TEMP/release" "$full" >/dev/null
+          scheduled=$(npx --no-install cms-scheduled-publish "$RUNNER_TEMP/release" 2>/dev/null || true)
+          git worktree remove --force "$RUNNER_TEMP/release"
+          if [ -n "$scheduled" ]; then
+            {
+              echo
+              echo "公開日時が未来のコンテンツ（現在の日時より後の \`publishDate\`）。公開日時は、デプロイ時に判定する。この日時を過ぎたあとに Deploy production を実行すると公開される:"
+              echo
+              echo "$scheduled"
+            } >> "$RUNNER_TEMP/body.md"
+          fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

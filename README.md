@@ -98,7 +98,7 @@ Terraformのplan・applyは、`config/terraform.env` の `TERRAFORM_PLAN_ROLE_AR
 
 ### 本番に出すコミットの更新（`publish-sha.yml`）
 
-`config/production.env` の `PUBLISH_SHA` を更新するPRを作る再利用workflow。入力 `sha`（任意。先頭7桁または40桁の小文字）を受け取り、7桁は先頭が一致するコミット（前方一致。途中の一致は対象にしない）の40桁に補完する。7桁が複数のコミットに一致する場合は、デフォルトブランチの履歴で最も新しいものを採用し、PR本文に候補と採用したコミットを書く。空ならデフォルトブランチの最新コミットを採用する。デフォルトブランチから実行されていること、コミットが存在してデフォルトブランチに含まれていることを検査してから、ブランチ `publish/update-sha` に変更をpushし、デフォルトブランチへのPRを作る（既にPRがあれば、タイトルと本文を更新する）。PRの本文に、変更前と変更後、含まれるコミットの一覧を書く。呼び出し側のジョブには `contents: write`・`pull-requests: write` が必要で、リポジトリの設定「Allow GitHub Actions to create and approve pull requests」を有効にする。Actionsが作ったPRではほかのworkflowが動かない。
+`config/production.env` の `PUBLISH_SHA` を更新するPRを作る再利用workflow。入力 `sha`（任意。先頭7桁または40桁の小文字）を受け取り、7桁は先頭が一致するコミット（前方一致。途中の一致は対象にしない）の40桁に補完する。7桁が複数のコミットに一致する場合は、デフォルトブランチの履歴で最も新しいものを採用し、PR本文に候補と採用したコミットを書く。空ならデフォルトブランチの最新コミットを採用する。デフォルトブランチから実行されていること、コミットが存在してデフォルトブランチに含まれていることを検査してから、ブランチ `publish/update-sha` に変更をpushし、デフォルトブランチへのPRを作る（既にPRがあれば、タイトルと本文を更新する）。PRの本文に、変更前と変更後、含まれるコミットの一覧を書く。変更後のコミットに、公開日時（`publishDate`）が現在より未来のコンテンツがあれば、公開日時とファイルの一覧も書く（`cms-scheduled-publish` が、`src/content` の Markdown・YAML のフロントマターの `publishDate` を、`cms.config.json` の `timeZone` で読む。呼び出し側で `npm ci` したコアのバージョンにこのコマンドがなければ省略する）。呼び出し側のジョブには `contents: write`・`pull-requests: write` が必要で、リポジトリの設定「Allow GitHub Actions to create and approve pull requests」を有効にする。Actionsが作ったPRではほかのworkflowが動かない。
 
 ```yaml
 # .github/workflows/publish-sha.yml: 手動実行
@@ -119,6 +119,11 @@ jobs:
     with:
       sha: ${{ inputs.sha }}
 ```
+
+`PUBLISH_SHA` を変えるPR（`config/production.env` の `PUBLISH_SHA` が、PRのベースブランチと違うPR）では、次のように動く。`PUBLISH_SHA` が未設定の側は、ベースブランチのHEADとして扱う。
+
+- `site-ci.yml` のビルド成果物の差分は、「本番の現在（変更前の `PUBLISH_SHA`）」と「このPRで出すコミット（変更後の `PUBLISH_SHA`）」を、それぞれビルドして比べる（通常のPRは、ベースブランチとPRのマージ結果を比べる）。どちらも公開日時にかかわらず全件を出力した状態（`SHOW_UNPUBLISHED=1`）でビルドして比べる。
+- `site-deploy.yml` の `cms` のプレビューは、PRのマージ結果ではなく、変更後の `PUBLISH_SHA` のコミットをビルドして配置する。通常のPRと同じく `PREVIEW=1` を付け、公開日時にかかわらず全件を出力する（公開予定のコンテンツも確認できる）。変更後のコミットがベースブランチに含まれていない場合は、通常のPRと同じ動作になる。
 
 ### 配信基盤が満たす構成
 
@@ -216,6 +221,7 @@ jobs:
 - テンプレートでは、内部リンクと画像のパスを `withBase()`（`static-site-cms/url`）に通す。外部URL・`#` から始まるリンクはそのまま返る。
 - CMSが保存する本文（Markdown）の `/images/...` や `/events/` のような絶対パスは、描画済みHTMLを `withBaseInHtml()` に通して補正する（スターターの `news/[slug].astro` など）。
 - `cms-check-links <出力ディレクトリ>` が、ビルド結果の内部リンクが `BASE_PATH` で始まり、リンク先が存在するかを検査する。
+- `cms-scheduled-publish [ルート]` が、`src/content` の中で `publishDate` が現在より未来のコンテンツを、公開日時順の表（Markdown）で出力する（なければ何も出力しない）。
 - `cms-dist-diff <ベースの出力> <PRの出力> [出力先]` が、2つのビルド成果物を比べ、追加・削除・変更されたファイルの一覧を Job Summary に出し、PRにコメントし（`pull-requests: write` が要る）、`report.md` と全差分の `dist.patch` を出力先に書く。ハッシュ付きのファイル名（`name.XXXXXXXX.js`）はハッシュを無視して比較する。`site-ci.yml` は、PRのときにベースブランチもビルドして比較し、Job Summary・PRのコメント（マーカー付きで更新する。呼び出し側に `pull-requests: write` が要る）・artifact（`dist-diff`）に出す。ベースのビルドや比較が失敗しても、CIは失敗させない。コアの参照バージョンの更新やAstroの更新で、成果物が変わるかの確認に使う。
 
 ## 共通設定（`admin/config.base.yml`）

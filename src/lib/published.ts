@@ -1,5 +1,5 @@
 import { z } from 'astro/zod';
-import { timeZone, toLocalDate } from './timezone.ts';
+import { timeZone, toLocalDate } from './timezone.mjs';
 
 export const isPreview = process.env.PREVIEW === '1';
 

@@ -15,7 +15,8 @@
     "cms-check-files": "scripts/check-files.mjs",
     "cms-path-guard": "scripts/path-guard.mjs",
     "cms-check-links": "scripts/check-links.mjs",
-    "cms-dist-diff": "scripts/dist-diff.mjs"
+    "cms-dist-diff": "scripts/dist-diff.mjs",
+    "cms-scheduled-publish": "scripts/scheduled-publish.mjs"
   },
   "files": [
     "src",

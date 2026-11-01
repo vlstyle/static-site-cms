@@ -31,6 +31,7 @@ jobs:
       prefix: ${{ steps.c.outputs.prefix }}
       distribution_id: ${{ steps.c.outputs.distribution_id }}
       show_unpublished: ${{ steps.c.outputs.show_unpublished }}
+      release_sha: ${{ steps.c.outputs.release_sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,6 +40,7 @@ jobs:
         env:
           ENVIRONMENT: ${{ inputs.environment }}
           SHOW_UNPUBLISHED_INPUT: ${{ inputs.show-unpublished }}
+          BASE_REF: ${{ github.base_ref }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_ACTION: ${{ github.event.action }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -58,13 +60,29 @@ jobs:
           }
 
           ref="$GITHUB_SHA"
+          release_sha=""
           role_key=DEPLOY_ROLE_ARN
           if [ "$ENVIRONMENT" = cms ]; then
             prefix_default=cms
             if [ "$EVENT_NAME" = pull_request ]; then
               role_key=PREVIEW_ROLE_ARN
               ref=""
-              if [ "$EVENT_ACTION" = closed ]; then mode=cleanup; else mode=preview; fi
+              if [ "$EVENT_ACTION" = closed ]; then
+                mode=cleanup
+              else
+                mode=preview
+                sha_of() { sed -n 's/^PUBLISH_SHA=//p' | head -n1; }
+                old=$(git show "origin/${BASE_REF}:config/production.env" 2>/dev/null | sha_of || true)
+                new=""
+                if [ -f config/production.env ]; then new=$(sha_of < config/production.env || true); fi
+                if [ "${old:-$BASE_REF}" != "${new:-$BASE_REF}" ]; then
+                  target="${new:-$(git rev-parse "origin/${BASE_REF}")}"
+                  if [[ "$target" =~ ^[0-9a-f]{40}$ ]] && git merge-base --is-ancestor "$target" "origin/${BASE_REF}" 2>/dev/null; then
+                    release_sha="$target"
+                    ref="$target"
+                  fi
+                fi
+              fi
             else
               require_default_branch
               mode=admin
@@ -112,6 +130,7 @@ jobs:
             echo "prefix=${prefix:-$prefix_default}"
             echo "distribution_id=$(get CLOUDFRONT_DISTRIBUTION_ID)"
             echo "show_unpublished=${show_unpublished:-false}"
+            echo "release_sha=${release_sha}"
           } >> "$GITHUB_OUTPUT"
           echo "環境: ${ENVIRONMENT} / 動作: ${mode} / コミット: ${ref:-（PRのマージコミット）}" >> "$GITHUB_STEP_SUMMARY"
 
@@ -232,10 +251,14 @@ jobs:
         env:
           URL: ${{ needs.config.outputs.site_url }}/preview/pr-${{ github.event.pull_request.number }}/
           SHA: ${{ github.event.pull_request.head.sha }}
+          RELEASE_SHA: ${{ needs.config.outputs.release_sha }}
         with:
           script: |
             const marker = '<!-- site-preview -->';
-            const body = `${marker}\nプレビュー: ${process.env.URL} （最新コミット: ${process.env.SHA.slice(0, 7)}、閲覧にはBasic認証が必要です）`;
+            const release = process.env.RELEASE_SHA
+              ? `\n\nこのPRは本番に出すコミットを変更するため、プレビューは本番に出すコミット \`${process.env.RELEASE_SHA.slice(0, 7)}\` のビルド結果（公開日時にかかわらず全件を出力）です。`
+              : '';
+            const body = `${marker}\nプレビュー: ${process.env.URL} （最新コミット: ${process.env.SHA.slice(0, 7)}、閲覧にはBasic認証が必要です）${release}`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });

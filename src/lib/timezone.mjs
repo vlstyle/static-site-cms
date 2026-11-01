@@ -1,19 +1,20 @@
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const DEFAULT_TIME_ZONE = 'Asia/Tokyo';
 const HAS_OFFSET = /(Z|[+-]\d{2}:?\d{2})$/i;
 
-const readTimeZone = () => {
+export const readTimeZone = (root = '.') => {
   try {
-    return JSON.parse(readFileSync('cms.config.json', 'utf8')).timeZone;
+    return JSON.parse(readFileSync(join(root, 'cms.config.json'), 'utf8')).timeZone ?? DEFAULT_TIME_ZONE;
   } catch {
-    return undefined;
+    return DEFAULT_TIME_ZONE;
   }
 };
 
-export const timeZone: string = readTimeZone() ?? DEFAULT_TIME_ZONE;
+export const timeZone = readTimeZone();
 
-const offsetMs = (t: number, zone: string) => {
+const offsetMs = (t, zone) => {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat('en-US', {
       timeZone: zone,
@@ -34,12 +35,12 @@ const offsetMs = (t: number, zone: string) => {
   );
 };
 
-const wallClockToInstant = (wallClockAsUtc: number, zone: string) => {
+const wallClockToInstant = (wallClockAsUtc, zone) => {
   const guess = wallClockAsUtc - offsetMs(wallClockAsUtc, zone);
   return new Date(wallClockAsUtc - offsetMs(guess, zone));
 };
 
-export const toLocalDate = (value: unknown, zone = timeZone) => {
+export const toLocalDate = (value, zone = timeZone) => {
   if (value instanceof Date) return wallClockToInstant(value.getTime(), zone);
   if (typeof value === 'string' && !HAS_OFFSET.test(value.trim())) {
     const iso = value.trim().replace(' ', 'T');
@@ -48,3 +49,13 @@ export const toLocalDate = (value: unknown, zone = timeZone) => {
   }
   return value;
 };
+
+export const formatLocal = (date, zone = timeZone) =>
+  new Intl.DateTimeFormat('sv-SE', {
+    timeZone: zone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
