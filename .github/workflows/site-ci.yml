@@ -26,6 +26,31 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run build:admin
+      - if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+          persist-credentials: false
+      - if: github.event_name == 'pull_request'
+        id: base-build
+        continue-on-error: true
+        working-directory: base
+        run: |
+          npm ci
+          npm run build
+      - if: github.event_name == 'pull_request' && steps.base-build.outcome == 'success'
+        continue-on-error: true
+        run: npx cms-dist-diff base/dist dist dist-diff
+      - if: github.event_name == 'pull_request' && steps.base-build.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-diff
+          path: |
+            dist-diff/report.md
+            dist-diff/dist.patch
+          if-no-files-found: ignore
 
   path-guard:
     name: path-guard
