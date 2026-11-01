@@ -96,6 +96,30 @@ Terraformのplan・applyは、`config/terraform.env` の `TERRAFORM_PLAN_ROLE_AR
 
 `production.env` の `PUBLISH_SHA` は公開の承認にあたる。`.github/CODEOWNERS` に `/config/production.env` を指定し、ルールセットで「Code Ownerのレビューを必須にする」と、承認者の承認なしには変えられなくなる（Terraformのapplyが更新するキーに `PUBLISH_SHA` は含まれず、ほかのキーを書き換えても `PUBLISH_SHA` は保持される）。
 
+### 本番に出すコミットの更新（`publish-sha.yml`）
+
+`config/production.env` の `PUBLISH_SHA` を更新するPRを作る再利用workflow。入力 `sha`（任意。先頭7桁または40桁の小文字）を受け取り、7桁は先頭が一致するコミット（前方一致。途中の一致は対象にしない）の40桁に補完する。7桁が複数のコミットに一致する場合は、デフォルトブランチの履歴で最も新しいものを採用し、PR本文に候補と採用したコミットを書く。空ならデフォルトブランチの最新コミットを採用する。デフォルトブランチから実行されていること、コミットが存在してデフォルトブランチに含まれていることを検査してから、ブランチ `publish/update-sha` に変更をpushし、デフォルトブランチへのPRを作る（既にPRがあれば、タイトルと本文を更新する）。PRの本文に、変更前と変更後、含まれるコミットの一覧を書く。呼び出し側のジョブには `contents: write`・`pull-requests: write` が必要で、リポジトリの設定「Allow GitHub Actions to create and approve pull requests」を有効にする。Actionsが作ったPRではほかのworkflowが動かない。
+
+```yaml
+# .github/workflows/publish-sha.yml: 手動実行
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 本番に出すコミットのSHA（先頭7桁または40桁）。空なら最新のコミット
+        type: string
+        default: ""
+        required: false
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  update:
+    uses: vlstyle/static-site-cms/.github/workflows/publish-sha.yml@<コミットハッシュ>
+    with:
+      sha: ${{ inputs.sha }}
+```
+
 ### 配信基盤が満たす構成
 
 Terraformを使わない場合は、次を満たすように作る。

@@ -1,0 +1,106 @@
+name: Publish SHA
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: "本番に出すコミットのSHA（先頭7桁または40桁の小文字）。7桁は先頭が一致するコミットの40桁に補完し、複数のコミットに一致する場合はデフォルトブランチの履歴で最も新しいものを採用する。空ならデフォルトブランチの最新コミット"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_SHA: ${{ inputs.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          BRANCH: publish/update-sha
+        run: |
+          set -euo pipefail
+          fail() { echo "$1" >&2; exit 1; }
+
+          [ "$GITHUB_REF" = "refs/heads/${DEFAULT_BRANCH}" ] || fail "デフォルトブランチ（${DEFAULT_BRANCH}）から実行してください。実行元: ${GITHUB_REF}"
+          note=""
+          if [ -z "$INPUT_SHA" ]; then
+            full=$(git rev-parse "origin/${DEFAULT_BRANCH}")
+            note="sha が未入力のため、デフォルトブランチ（${DEFAULT_BRANCH}）の最新コミットを採用した。"
+          else
+            [[ "$INPUT_SHA" =~ ^([0-9a-f]{7}|[0-9a-f]{40})$ ]] || fail "sha は先頭7桁または40桁の小文字の16進数で指定してください: ${INPUT_SHA}"
+            if [ "${#INPUT_SHA}" -eq 40 ]; then
+              candidates="$INPUT_SHA"
+            else
+              candidates=$(git rev-parse --disambiguate="$INPUT_SHA")
+            fi
+            commits=$(for c in $candidates; do
+              if [ "$(git cat-file -t "$c" 2>/dev/null)" = commit ]; then echo "$c"; fi
+            done)
+            [ -n "$commits" ] || fail "コミットが見つかりません: ${INPUT_SHA}"
+            in_default=$(for c in $commits; do
+              if git merge-base --is-ancestor "$c" "origin/${DEFAULT_BRANCH}"; then echo "$c"; fi
+            done)
+            [ -n "$in_default" ] || fail "デフォルトブランチ（${DEFAULT_BRANCH}）に含まれていないコミットです: ${INPUT_SHA}"
+            full=$(git rev-list --topo-order "origin/${DEFAULT_BRANCH}" | grep -m1 -Fx "$in_default")
+            if [ "$(grep -c . <<<"$in_default")" -gt 1 ]; then
+              list=$(for c in $in_default; do git show -s --format='- `%H`（%cI）' "$c"; done)
+              note=$(printf '先頭7桁 `%s` が複数のコミットに一致したため、履歴で最も新しい `%s` を採用した。候補:\n\n%s' "$INPUT_SHA" "$full" "$list")
+            fi
+          fi
+
+          file=config/production.env
+          [ -f "$file" ] || fail "${file} がありません"
+          current=$(sed -n 's/^PUBLISH_SHA=//p' "$file" | head -n1)
+          if [ "$current" = "$full" ]; then
+            echo "PUBLISH_SHA は変更なし: ${full}"
+            exit 0
+          fi
+          if grep -q '^PUBLISH_SHA=' "$file"; then
+            sed -i "s/^PUBLISH_SHA=.*/PUBLISH_SHA=${full}/" "$file"
+          else
+            [ -z "$(tail -c1 "$file")" ] || echo >> "$file"
+            echo "PUBLISH_SHA=${full}" >> "$file"
+          fi
+
+          short="${full:0:7}"
+          title="本番に出すコミットを${short}にする"
+          {
+            echo "${file} の PUBLISH_SHA を更新する。マージ後に Deploy production を実行すると、このコミットが本番に出る。"
+            echo
+            echo "- 変更前: \`${current:-（未設定。デフォルトブランチのHEAD）}\`"
+            echo "- 変更後: \`${full}\`"
+            if [ -n "$note" ]; then
+              echo
+              echo -e "$note"
+            fi
+            if [ -n "$current" ] && git cat-file -e "${current}^{commit}" 2>/dev/null; then
+              added=$(git log --no-decorate --format='- `%h` %s' -n 30 "${current}..${full}")
+              echo
+              if [ -n "$added" ]; then
+                echo "含まれるコミット（変更前から変更後、新しい順に最大30件）:"
+                echo
+                echo "$added"
+              else
+                echo "変更後は、変更前の履歴に含まれるコミット（巻き戻し）。"
+              fi
+            fi
+          } > "$RUNNER_TEMP/body.md"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git add -- "$file"
+          git commit -m "$title"
+          git push --force origin "$BRANCH"
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
+            gh pr create --base "$DEFAULT_BRANCH" --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr edit "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          fi
