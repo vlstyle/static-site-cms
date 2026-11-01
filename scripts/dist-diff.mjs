@@ -75,6 +75,7 @@ const report = [
     ? 'ビルド成果物に差分はありません。'
     : `追加 ${added.length} / 削除 ${removed.length} / 変更 ${changed.length} / 変更なし ${unchanged}（合計サイズ ${sign}${delta} B）`,
   '',
+  ...(process.env.DIST_DIFF_NOTE ? [process.env.DIST_DIFF_NOTE, ''] : []),
   'ハッシュ付きのファイル名（`name.XXXXXXXX.js` など）は、ハッシュを無視して比較しています。',
   ...list('追加', added),
   ...list('削除', removed),

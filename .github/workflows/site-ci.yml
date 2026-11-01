@@ -26,6 +26,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          SHOW_UNPUBLISHED: ${{ github.event_name == 'pull_request' && '1' || '' }}
       - run: npm run build:admin
       - if: github.event_name == 'pull_request'
         id: release
@@ -69,6 +71,8 @@ jobs:
         id: base-build
         continue-on-error: true
         working-directory: base
+        env:
+          SHOW_UNPUBLISHED: "1"
         run: |
           npm ci
           npm run build
@@ -82,6 +86,8 @@ jobs:
         id: release-build
         continue-on-error: true
         working-directory: release
+        env:
+          SHOW_UNPUBLISHED: "1"
         run: |
           npm ci
           npm run build
@@ -90,6 +96,7 @@ jobs:
         env:
           RELEASE: ${{ steps.release.outputs.release }}
           DIST_DIFF_TITLE: ${{ steps.release.outputs.release == 'true' && steps.release.outputs.title || '' }}
+          DIST_DIFF_NOTE: 公開日時にかかわらず、全件を出力した状態で比較しています。
         run: |
           head=dist
           if [ "$RELEASE" = true ]; then head=release/dist; fi

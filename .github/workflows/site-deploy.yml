@@ -61,7 +61,6 @@ jobs:
 
           ref="$GITHUB_SHA"
           release_sha=""
-          release_show_unpublished=""
           role_key=DEPLOY_ROLE_ARN
           if [ "$ENVIRONMENT" = cms ]; then
             prefix_default=cms
@@ -81,7 +80,6 @@ jobs:
                   if [[ "$target" =~ ^[0-9a-f]{40}$ ]] && git merge-base --is-ancestor "$target" "origin/${BASE_REF}" 2>/dev/null; then
                     release_sha="$target"
                     ref="$target"
-                    if [ -f config/production.env ]; then release_show_unpublished=$(sed -n 's/^SHOW_UNPUBLISHED=//p' config/production.env | head -n1); fi
                   fi
                 fi
               fi
@@ -112,7 +110,6 @@ jobs:
 
           show_unpublished="${SHOW_UNPUBLISHED_INPUT:-$(get SHOW_UNPUBLISHED)}"
           [[ "$show_unpublished" =~ ^(true|false)?$ ]] || fail "${file} の SHOW_UNPUBLISHED は true か false で指定してください: ${show_unpublished}"
-          if [ -n "$release_sha" ]; then show_unpublished="$release_show_unpublished"; fi
 
           prefix=$(get PREFIX)
           region=$(get AWS_REGION)
@@ -155,7 +152,6 @@ jobs:
           MODE: ${{ needs.config.outputs.mode }}
           SITE_URL: ${{ needs.config.outputs.site_url }}
           SHOW_UNPUBLISHED: ${{ needs.config.outputs.show_unpublished == 'true' && '1' || '' }}
-          RELEASE_SHA: ${{ needs.config.outputs.release_sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           case "$MODE" in
@@ -164,11 +160,7 @@ jobs:
               out=dist-admin
               ;;
             preview)
-              if [ -n "$RELEASE_SHA" ]; then
-                BASE_PATH="/preview/pr-${PR_NUMBER}" npm run build
-              else
-                PREVIEW=1 BASE_PATH="/preview/pr-${PR_NUMBER}" npm run build
-              fi
+              PREVIEW=1 BASE_PATH="/preview/pr-${PR_NUMBER}" npm run build
               out=dist
               ;;
             *)
@@ -264,7 +256,7 @@ jobs:
           script: |
             const marker = '<!-- site-preview -->';
             const release = process.env.RELEASE_SHA
-              ? `\n\nこのPRは本番に出すコミットを変更するため、プレビューは本番に出すコミット \`${process.env.RELEASE_SHA.slice(0, 7)}\` のビルド結果（公開日時で絞り込み）です。`
+              ? `\n\nこのPRは本番に出すコミットを変更するため、プレビューは本番に出すコミット \`${process.env.RELEASE_SHA.slice(0, 7)}\` のビルド結果（公開日時にかかわらず全件を出力）です。`
               : '';
             const body = `${marker}\nプレビュー: ${process.env.URL} （最新コミット: ${process.env.SHA.slice(0, 7)}、閲覧にはBasic認証が必要です）${release}`;
             const { owner, repo } = context.repo;
