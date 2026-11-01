@@ -230,6 +230,7 @@ jobs:
         run: aws s3 sync dist "s3://${BUCKET}/${PREFIX}/preview/pr-${PR_NUMBER}/" --delete --cache-control "no-cache"
       - env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
           URL: ${{ needs.config.outputs.site_url }}/preview/pr-${{ github.event.pull_request.number }}/
