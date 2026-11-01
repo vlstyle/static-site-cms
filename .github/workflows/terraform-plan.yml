@@ -4,9 +4,9 @@ on:
   workflow_call:
     inputs:
       config-file:
-        description: 配信先の情報を書いたenvファイル（KEY=value）。role-arn・state-bucketが空のとき、TERRAFORM_PLAN_ROLE_ARN と TERRAFORM_STATE_BUCKET を読む
+        description: Terraformの情報を書いたenvファイル（KEY=value）。role-arn・state-bucketが空のとき、TERRAFORM_PLAN_ROLE_ARN と TERRAFORM_STATE_BUCKET を読む
         type: string
-        default: config/deploy.env
+        default: config/terraform.env
       role-arn:
         description: plan用のIAMロールのARN（読み取り専用 + stateの読み書き）。envファイルより優先する
         type: string

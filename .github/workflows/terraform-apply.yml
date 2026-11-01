@@ -4,9 +4,9 @@ on:
   workflow_call:
     inputs:
       config-file:
-        description: 配信先の情報を書いたenvファイル（KEY=value）。role-arn・state-bucketが空のとき、TERRAFORM_APPLY_ROLE_ARN と TERRAFORM_STATE_BUCKET を読む
+        description: Terraformの情報を書いたenvファイル（KEY=value）。role-arn・state-bucketが空のとき、TERRAFORM_APPLY_ROLE_ARN と TERRAFORM_STATE_BUCKET を読む
         type: string
-        default: config/deploy.env
+        default: config/terraform.env
       role-arn:
         description: apply用のIAMロールのARN。envファイルより優先する
         type: string
@@ -28,8 +28,8 @@ on:
       terraform-version:
         type: string
         default: "1.16.4"
-      env-file:
-        description: applyの出力 github_variables を書き出すenvファイル。指定すると、変更があるとき更新のPRを作る（呼び出し元のジョブに contents の write と pull-requests の write が必要）。空なら何もしない
+      env-dir:
+        description: applyの出力 env_files を、環境ごとのenvファイル（<env-dir>/<環境名>.env）に書き出すディレクトリ。指定すると、変更があるとき更新のPRを作る（呼び出し元のジョブに contents の write と pull-requests の write が必要）。空なら何もしない
         type: string
         default: ""
     secrets:
@@ -103,19 +103,19 @@ jobs:
           terraform -chdir="$STACK_DIR" apply -input=false -auto-approve -no-color -lock-timeout=5m \
             -var-file="$GITHUB_WORKSPACE/${{ inputs.tfvars-file }}"
       - name: Show outputs
-        run: terraform -chdir="$STACK_DIR" output -no-color github_variables
+        run: terraform -chdir="$STACK_DIR" output -no-color env_files
       - name: Save outputs
-        if: inputs.env-file != ''
-        run: terraform -chdir="$STACK_DIR" output -json github_variables > "$RUNNER_TEMP/github_variables.json"
+        if: inputs.env-dir != ''
+        run: terraform -chdir="$STACK_DIR" output -json env_files > "$RUNNER_TEMP/env_files.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: inputs.env-file != ''
+        if: inputs.env-dir != ''
         with:
-          name: github-variables
-          path: ${{ runner.temp }}/github_variables.json
+          name: env-files
+          path: ${{ runner.temp }}/env_files.json
 
   update-env:
     needs: apply
-    if: inputs.env-file != ''
+    if: inputs.env-dir != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -124,47 +124,49 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: github-variables
+          name: env-files
           path: ${{ runner.temp }}
-      - name: Update the env file
+      - name: Update the env files
         env:
-          ENV_FILE: ${{ inputs.env-file }}
+          ENV_DIR: ${{ inputs.env-dir }}
         run: |
-          python3 - "$ENV_FILE" "$RUNNER_TEMP/github_variables.json" <<'PY'
+          python3 - "$ENV_DIR" "$RUNNER_TEMP/env_files.json" <<'PY'
           import json, os, re, sys
-          path, outputs = sys.argv[1], sys.argv[2]
-          current = {}
-          if os.path.exists(path):
-              for line in open(path):
-                  m = re.match(r'^([A-Z0-9_]+)=(.*)$', line.rstrip('\n'))
-                  if m:
-                      current[m.group(1)] = m.group(2)
-          current.update({k: v for k, v in json.load(open(outputs)).items() if v is not None})
-          os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
-          with open(path, 'w') as f:
-              f.write('# terraform-apply.yml が出力 github_variables から更新する。同じキーは上書きされ、ほかのキーは保持される。\n')
-              for k in sorted(current):
-                  f.write(f'{k}={current[k]}\n')
+          directory, outputs = sys.argv[1], sys.argv[2]
+          os.makedirs(directory, exist_ok=True)
+          for name, values in json.load(open(outputs)).items():
+              path = os.path.join(directory, f'{name}.env')
+              current = {}
+              if os.path.exists(path):
+                  for line in open(path):
+                      m = re.match(r'^([A-Z0-9_]+)=(.*)$', line.rstrip('\n'))
+                      if m:
+                          current[m.group(1)] = m.group(2)
+              current.update({k: v for k, v in values.items() if v is not None})
+              with open(path, 'w') as f:
+                  f.write('# terraform-apply.yml が出力 env_files から更新する。同じキーは上書きされ、ほかのキー（PUBLISH_SHA など）は保持される。\n')
+                  for k in sorted(current):
+                      f.write(f'{k}={current[k]}\n')
           PY
       - name: Open a pull request
         env:
           GH_TOKEN: ${{ github.token }}
-          ENV_FILE: ${{ inputs.env-file }}
+          ENV_DIR: ${{ inputs.env-dir }}
           BASE: ${{ github.event.repository.default_branch }}
           BRANCH: terraform/update-deploy-env
         run: |
-          if [ -z "$(git status --porcelain -- "$ENV_FILE")" ]; then
+          if [ -z "$(git status --porcelain -- "$ENV_DIR")" ]; then
             echo "変更なし"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -C "$BRANCH"
-          git add -- "$ENV_FILE"
-          git commit -m "Terraformのoutputに合わせて${ENV_FILE}を更新する"
+          git add -- "$ENV_DIR"
+          git commit -m "Terraformのoutputに合わせて${ENV_DIR}を更新する"
           git push --force origin "$BRANCH"
           if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
             gh pr create --base "$BASE" --head "$BRANCH" \
-              --title "Terraformのoutputに合わせて${ENV_FILE}を更新する" \
-              --body "terraform-apply.ymlが、applyの出力 github_variables から ${ENV_FILE} を更新した。マージするとデプロイ用workflowが新しい値を使う。"
+              --title "Terraformのoutputに合わせて${ENV_DIR}を更新する" \
+              --body "terraform-apply.ymlが、applyの出力 env_files から ${ENV_DIR} 配下の環境ごとのenvファイルを更新した。マージするとデプロイ用workflowが新しい値を使う。"
           fi

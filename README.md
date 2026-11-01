@@ -69,47 +69,61 @@ Rulesetの必須チェック名は、呼び出し側のジョブIDを前置し�
 
 ## 配信基盤の契約（envファイル）
 
-配信先の情報は、リポジトリのActionsの変数ではなく、`config/deploy.env`（`KEY=value`、`#` でコメント）に書く。再利用workflow（`site-deploy.yml`・`site-preview.yml`・`terraform-plan.yml`・`terraform-apply.yml`）は、このファイルを読んで動く。配信基盤を作る方法は問わない。
+配信先の情報は、リポジトリのActionsの変数ではなく、環境ごとのファイル `config/<環境名>.env`（`KEY=value`、`#` でコメント）に書く。再利用workflow（`site-deploy.yml`・`terraform-plan.yml`・`terraform-apply.yml`）は、このファイルを読んで動く。配信基盤を作る方法は問わない。
 
-- Terraformを使う場合: [`terraform/`](terraform/README.md) のスタックで作り、`terraform-apply.yml` の `env-file` 入力で、applyの出力からこのファイルを更新するPRを作らせる。
-- 使わない場合: 手作業・別のIaCなどで下の構成を作り、このファイルを手で書く。
+- Terraformを使う場合: [`terraform/`](terraform/README.md) のスタックで作り、`terraform-apply.yml` の `env-dir` 入力で、applyの出力から `config/cms.env`・`staging.env`・`production.env` を更新するPRを作らせる。
+- 使わない場合: 手作業・別のIaCなどで下の構成を作り、ファイルを手で書く。
 
-| キー | 内容 | 使うworkflow |
+### 環境ごとのファイル
+
+| キー | 内容 | 対象 |
 |---|---|---|
+| `S3_BUCKET` | 配置先のS3バケット（必須） | すべて |
+| `DEPLOY_ROLE_ARN` | 配置に使うロール（必須）。`cms` では管理画面を配置するロール | すべて |
 | `AWS_REGION` | 既定 `ap-northeast-1` | すべて |
-| `S3_BUCKET` | 共有のS3バケット | deploy・preview |
-| `CMS_DOMAIN` | 管理画面とプレビューのドメイン | preview・deploy（管理画面） |
-| `CMS_ADMIN_DEPLOY_ROLE_ARN` | 管理画面を配置するロール | deploy（`deploy-admin: true`） |
-| `CMS_CLOUDFRONT_DISTRIBUTION_ID` | 管理画面のキャッシュを無効化するディストリビューション。あれば、管理画面の配置後に `/admin/*` を無効化する。ロールに `cloudfront:CreateInvalidation` が必要 | deploy（`deploy-admin: true`） |
-| `CMS_PREVIEW_ROLE_ARN` | プレビューを配置するロール | preview |
-| `STAGING_SITE_URL` `PRODUCTION_SITE_URL` | ビルドに渡す `SITE_URL` | deploy（`target`） |
-| `STAGING_DEPLOY_ROLE_ARN` `PRODUCTION_DEPLOY_ROLE_ARN` | サイトを配置するロール | deploy（`target`） |
-| `STAGING_CLOUDFRONT_DISTRIBUTION_ID` `PRODUCTION_CLOUDFRONT_DISTRIBUTION_ID` | 配置後に無効化するディストリビューション | deploy（`target`） |
-| `CMS_PREFIX` `STAGING_PREFIX` `PRODUCTION_PREFIX` | バケット内のプレフィックス。既定は `cms`・`staging`・`production` | deploy・preview |
-| `TERRAFORM_PLAN_ROLE_ARN` `TERRAFORM_APPLY_ROLE_ARN` `TERRAFORM_STATE_BUCKET` | Terraformのplan・apply用ロールとstateのバケット（bootstrapの出力。手で書く） | terraform-plan・apply |
+| `PREFIX` | バケット内のプレフィックス。既定は環境名（`cms` は `cms`） | すべて |
+| `CLOUDFRONT_DISTRIBUTION_ID` | 配置後にキャッシュを無効化するディストリビューション。サイトは `/*`、`cms` の管理画面は `/admin/*`。ロールに `cloudfront:CreateInvalidation` が必要 | すべて |
+| `SITE_URL` | ビルドに渡す `SITE_URL` | `cms` 以外 |
+| `CMS_DOMAIN` | 管理画面とプレビューのドメイン（必須）。`SITE_URL` は `https://<CMS_DOMAIN>` になる | `cms` |
+| `PREVIEW_ROLE_ARN` | プレビューを配置するロール（PRで必須） | `cms` |
+| `SHOW_UNPUBLISHED` | `true` にすると、公開日時が未来のページも出力する（staging向け）。省略はfalse。workflowの入力 `show-unpublished` が優先する | `cms` 以外 |
+| `PUBLISH_SHA` | 本番に出すコミット（40桁）。デフォルトブランチに含まれていること。省略するとデフォルトブランチのHEAD | `production` |
 
-どのキーも省略できる。値がなければ、その配信は行われない（例: `STAGING_DEPLOY_ROLE_ARN` がなければstagingは配置しない）。workflowの入力で同じ値を渡すと、ファイルより優先される。値に引用符は付けない。サンプルは [`examples/site/config/deploy.env.example`](examples/site/config/deploy.env.example)。
+Terraformのplan・applyは、`config/terraform.env` の `TERRAFORM_PLAN_ROLE_ARN` `TERRAFORM_APPLY_ROLE_ARN` `TERRAFORM_STATE_BUCKET`（bootstrapの出力。手で書く）を読む。サンプルは [`examples/site/config/`](examples/site/config)。値に引用符は付けない。
+
+`production.env` の `PUBLISH_SHA` は公開の承認にあたる。`.github/CODEOWNERS` に `/config/production.env` を指定し、ルールセットで「Code Ownerのレビューを必須にする」と、承認者の承認なしには変えられなくなる（Terraformのapplyが更新するキーに `PUBLISH_SHA` は含まれず、ほかのキーを書き換えても `PUBLISH_SHA` は保持される）。
 
 ### 配信基盤が満たす構成
 
 Terraformを使わない場合は、次を満たすように作る。
 
-- S3バケットを1つ、`cms/`・`staging/`・`production/` のプレフィックスで使う（プレフィックスは `*_PREFIX` で変えられる）。
+- S3バケットを1つ、環境ごとのプレフィックス（`cms/`・`staging/`・`production/` など）で使う。
 - 配信するCloudFrontのoriginは、バケットの該当プレフィックス（`origin_path`）にする。管理画面とプレビューは `cms/admin/`・`cms/preview/pr-<番号>/`、ドメインは `CMS_DOMAIN`。プレビューはサブパス（`/preview/pr-<番号>/`）で配信できること。
-- GitHub ActionsのOIDCで引き受けるIAMロールを作る。信頼ポリシーのsubjectは、`CMS_ADMIN_DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:ref:refs/heads/main`、`CMS_PREVIEW_ROLE_ARN` が `repo:<owner>/<repo>:pull_request`、`STAGING_DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:environment:staging`、`PRODUCTION_DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:environment:production`。
-- 各ロールの権限は、自分のプレフィックスへの `s3:ListBucket`（`s3:prefix` 条件）と `s3:GetObject`・`PutObject`・`DeleteObject`。サイトのロールにはさらに、ディストリビューションへの `cloudfront:CreateInvalidation`。
+- IP制限やBasic認証は、CloudFront側（Terraformのスタックでは CloudFront Function）で設定する。デプロイのworkflowは設定しない。
+- GitHub ActionsのOIDCで引き受けるIAMロールを作る。信頼ポリシーのsubjectは、`cms` の `DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:ref:refs/heads/<デフォルトブランチ>`、`PREVIEW_ROLE_ARN` が `repo:<owner>/<repo>:pull_request`、それ以外の環境の `DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:environment:<環境名>`。
+- 各ロールの権限は、自分のプレフィックスへの `s3:ListBucket`（`s3:prefix` 条件）と `s3:GetObject`・`PutObject`・`DeleteObject`。ディストリビューションを指定するなら、`cloudfront:CreateInvalidation`。
 
 ### 公開日時
 
 `cms.config.json` の `timeZone`（IANAのタイムゾーン名。省略時は `Asia/Tokyo`）が、サイトのローカルタイムのタイムゾーンになる。`static-site-cms/published` の `localDate` をスキーマの日付項目（`publishDate` など）に使うと、オフセットのない値（`2026-10-31T11:16:00`、`2026-10-31`）をこのタイムゾーンのローカルタイムとして扱う。YAMLのオフセットなしの日時はUTCとして読まれるため、`localDate` が補正する（夏時間も考慮する）。`+09:00` などのオフセット付きの値は、文字列（引用符つき）で書けばそのまま使う。`formatDate` の表示も同じタイムゾーンで行う。
 
-`isPublished` はビルド時に一度だけ判定する。公開日時を過ぎた後に再ビルドしないと、ページは出力されない。`site-deploy.yml` は `target: staging` のビルドで環境変数 `SHOW_UNPUBLISHED=1` を渡し、公開日時にかかわらず全件を出力する（productionは公開日時で絞る）。
+`isPublished` はビルド時に一度だけ判定する。公開日時を過ぎた後に再ビルドしないと、ページは出力されない。環境のenvファイルの `SHOW_UNPUBLISHED=true` は、ビルドに `SHOW_UNPUBLISHED=1` を渡し、公開日時にかかわらず全件を出力する（stagingの確認用）。`site-deploy.yml` の入力 `show-unpublished`（`true`・`false`）を指定すると、envファイルより優先する（手動実行で一時的に状態を変えて確認するときに使う）。どちらも指定がなければfalse（公開日時で絞る）。`cms` のプレビューは常に全件を出力する。
 
 ### キャッシュ
 
-`site-deploy.yml` は、アップロード時に `Cache-Control` を付ける。ハッシュ付きのアセットのディレクトリ（入力 `immutable-assets-dir`、既定 `_astro`）は `public, max-age=31536000, immutable`、それ以外（HTML、管理画面を含む）は `no-cache`（ブラウザは毎回確認する）。CloudFrontのキャッシュは、productionならリリースのたびに `/*` を無効化する。古いハッシュのアセットは削除しない（HTMLが参照するのは新しいハッシュだけなので、残っても表示には影響しない）。
+`site-deploy.yml` は、アップロード時に `Cache-Control` を付ける。ハッシュ付きのアセットのディレクトリ `_astro`（Astroの既定の出力先）は `public, max-age=31536000, immutable`、それ以外（HTML、管理画面を含む）は `no-cache`（ブラウザは毎回確認する）。`CLOUDFRONT_DISTRIBUTION_ID` があれば、配置のたびに無効化する。古いハッシュのアセットは削除しない（HTMLが参照するのは新しいハッシュだけなので、残っても表示には影響しない）。
 
 ### workflowの呼び出し
+
+`site-deploy.yml` は、環境名（`environment`）を受け取り、`config/<環境名>.env` に従って動く。呼び出し側のworkflowには、`permissions` に `id-token: write`・`contents: read`・`deployments: read`・`pull-requests: write` が要る（再利用workflowの要求する権限の上限）。
+
+| 環境名 | 動作 |
+|---|---|
+| `cms` | `main` へのpushで管理画面（`admin/index.html`・`config.yml`）を `<PREFIX>/admin/` に配置する。PRでは `<PREFIX>/preview/pr-<番号>/` にプレビューを配置してコメントし、PRを閉じると削除する |
+| `production` | サイトを配置する。デフォルトブランチから実行されていること、`PUBLISH_SHA` があればそのコミットがデフォルトブランチに含まれていることを検査する。`PUBLISH_SHA` がなければHEAD |
+| それ以外（`staging`、`staging1` など） | サイトを配置する。pull_requestでは動かない |
+
+環境名は、GitHubのEnvironment名にもなる（`cms` のプレビューと管理画面は除く）。`production` にEnvironmentの承認者を設定すると、承認後に配置される。
 
 ```yaml
 # .github/workflows/deploy-staging.yml: mainへのマージで自動
@@ -120,51 +134,53 @@ permissions:
   id-token: write
   contents: read
   deployments: read
+  pull-requests: write
 jobs:
   deploy:
     uses: vlstyle/static-site-cms/.github/workflows/site-deploy.yml@<コミットハッシュ>
     with:
-      target: staging
-      deploy-admin: true
+      environment: staging
 ```
 
 ```yaml
-# .github/workflows/deploy-production.yml: 手動実行。sha が空なら、stagingに最後に成功したデプロイのコミットを反映する
+# .github/workflows/deploy-production.yml: 手動実行（config/production.env の PUBLISH_SHA のコミットを出す）。show-unpublished は、手動実行のときだけ状態を変えて確認したい場合に渡す
 on:
   workflow_dispatch:
     inputs:
-      sha:
-        type: string
-        default: ""
+      show-unpublished:
+        type: choice
+        options: ["", "true", "false"]
 permissions:
   id-token: write
   contents: read
   deployments: read
+  pull-requests: write
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
     uses: vlstyle/static-site-cms/.github/workflows/site-deploy.yml@<コミットハッシュ>
     with:
-      target: production
-      ref: ${{ inputs.sha }}
-      ref-from-environment: staging
+      environment: production
+      show-unpublished: ${{ inputs.show-unpublished }}
 ```
 
 ```yaml
-# .github/workflows/preview.yml
+# .github/workflows/cms.yml: 管理画面（mainへのpush）とPRのプレビュー
 on:
+  push:
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, closed]
 permissions:
-  contents: read
   id-token: write
+  contents: read
+  deployments: read
   pull-requests: write
 jobs:
-  preview:
-    uses: vlstyle/static-site-cms/.github/workflows/site-preview.yml@<コミットハッシュ>
+  cms:
+    uses: vlstyle/static-site-cms/.github/workflows/site-deploy.yml@<コミットハッシュ>
+    with:
+      environment: cms
 ```
-
-`target` は `environment:` にもなるので、stagingは `environment:staging`、productionは `environment:production` のOIDC subjectで動く。productionは、stagingに最後に成功したデプロイのコミットを、productionの `SITE_URL` でビルドし直す。
 
 ## サブパスで配信する（`base`）
 
