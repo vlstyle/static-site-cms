@@ -95,7 +95,7 @@ Terraformのplan・applyは、`config/terraform.env` の `TERRAFORM_PLAN_ROLE_AR
 
 ### 本番に出すコミットの更新（`publish-sha.yml`）
 
-`config/production.env` の `PUBLISH_SHA` を更新するPRを作る再利用workflow。入力 `sha`（7桁または40桁の小文字）を受け取り、7桁は40桁に補完する。デフォルトブランチから実行されていること、コミットが存在して（7桁が複数に一致する場合は失敗する）デフォルトブランチに含まれていることを検査してから、ブランチ `publish/update-sha` に変更をpushし、デフォルトブランチへのPRを作る（既にPRがあれば、タイトルと本文を更新する）。PRの本文に、変更前と変更後、含まれるコミットの一覧を書く。呼び出し側のジョブには `contents: write`・`pull-requests: write` が必要で、リポジトリの設定「Allow GitHub Actions to create and approve pull requests」を有効にする。Actionsが作ったPRではほかのworkflowが動かない。
+`config/production.env` の `PUBLISH_SHA` を更新するPRを作る再利用workflow。入力 `sha`（任意。7桁または40桁の小文字）を受け取り、7桁は40桁に補完する。7桁が複数のコミットに一致する場合は、デフォルトブランチの履歴で最も新しいものを採用し、PR本文に候補と採用したコミットを書く。空ならデフォルトブランチの最新コミットを採用する。デフォルトブランチから実行されていること、コミットが存在してデフォルトブランチに含まれていることを検査してから、ブランチ `publish/update-sha` に変更をpushし、デフォルトブランチへのPRを作る（既にPRがあれば、タイトルと本文を更新する）。PRの本文に、変更前と変更後、含まれるコミットの一覧を書く。呼び出し側のジョブには `contents: write`・`pull-requests: write` が必要で、リポジトリの設定「Allow GitHub Actions to create and approve pull requests」を有効にする。Actionsが作ったPRではほかのworkflowが動かない。
 
 ```yaml
 # .github/workflows/publish-sha.yml: 手動実行
@@ -103,9 +103,10 @@ on:
   workflow_dispatch:
     inputs:
       sha:
-        description: 本番に出すコミットのSHA（7桁または40桁）
+        description: 本番に出すコミットのSHA（7桁または40桁）。空なら最新のコミット
         type: string
-        required: true
+        default: ""
+        required: false
 permissions:
   contents: write
   pull-requests: write
