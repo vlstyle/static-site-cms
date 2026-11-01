@@ -143,6 +143,8 @@ Terraformを使わない場合は、次を満たすように作る。
 
 `site-deploy.yml` は、アップロード時に `Cache-Control` を付ける。ハッシュ付きのアセットのディレクトリ `_astro`（Astroの既定の出力先）は `public, max-age=31536000, immutable`、それ以外（HTML、管理画面を含む）は `no-cache`（ブラウザは毎回確認する）。`CLOUDFRONT_DISTRIBUTION_ID` があれば、配置のたびに無効化する。古いハッシュのアセットは削除しない（HTMLが参照するのは新しいハッシュだけなので、残っても表示には影響しない）。
 
+配置では、内容が変わっていないファイルをアップロードしない（S3のバージョンが増えない）。`_astro` はファイル名にハッシュが入るのでサイズだけで比較し、それ以外はファイルのMD5とS3のETagを比べて、違うものだけ上げる。ETagがMD5にならないオブジェクト（SSE-KMSやマルチパート）は、毎回上がる。`Cache-Control` だけを変えても、内容が同じファイルには反映されない。
+
 ### workflowの呼び出し
 
 `site-deploy.yml` は、環境名（`environment`）を受け取り、`config/<環境名>.env` に従って動く。呼び出し側のworkflowには、`permissions` に `id-token: write`・`contents: read`・`deployments: read`・`pull-requests: write` が要る（再利用workflowの要求する権限の上限）。
