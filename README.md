@@ -86,6 +86,7 @@ Rulesetの必須チェック名は、呼び出し側のジョブIDを前置し�
 | `SITE_URL` | ビルドに渡す `SITE_URL` | `cms` 以外 |
 | `CMS_DOMAIN` | 管理画面とプレビューのドメイン（必須）。`SITE_URL` は `https://<CMS_DOMAIN>` になる | `cms` |
 | `PREVIEW_ROLE_ARN` | プレビューを配置するロール（PRで必須） | `cms` |
+| `SHOW_UNPUBLISHED` | `true` にすると、公開日時が未来のページも出力する（staging向け）。省略はfalse。workflowの入力 `show-unpublished` が優先する | `cms` 以外 |
 | `PUBLISH_SHA` | 本番に出すコミット（40桁）。デフォルトブランチに含まれていること。省略するとデフォルトブランチのHEAD | `production` |
 
 Terraformのplan・applyは、`config/terraform.env` の `TERRAFORM_PLAN_ROLE_ARN` `TERRAFORM_APPLY_ROLE_ARN` `TERRAFORM_STATE_BUCKET`（bootstrapの出力。手で書く）を読む。サンプルは [`examples/site/config/`](examples/site/config)。値に引用符は付けない。
@@ -106,11 +107,11 @@ Terraformを使わない場合は、次を満たすように作る。
 
 `cms.config.json` の `timeZone`（IANAのタイムゾーン名。省略時は `Asia/Tokyo`）が、サイトのローカルタイムのタイムゾーンになる。`static-site-cms/published` の `localDate` をスキーマの日付項目（`publishDate` など）に使うと、オフセットのない値（`2026-10-31T11:16:00`、`2026-10-31`）をこのタイムゾーンのローカルタイムとして扱う。YAMLのオフセットなしの日時はUTCとして読まれるため、`localDate` が補正する（夏時間も考慮する）。`+09:00` などのオフセット付きの値は、文字列（引用符つき）で書けばそのまま使う。`formatDate` の表示も同じタイムゾーンで行う。
 
-`isPublished` はビルド時に一度だけ判定する。公開日時を過ぎた後に再ビルドしないと、ページは出力されない。`site-deploy.yml` の入力 `show-unpublished: true` を付けた環境は、ビルドに `SHOW_UNPUBLISHED=1` を渡し、公開日時にかかわらず全件を出力する（stagingの確認用）。付けない環境（productionなど）は、公開日時で絞る。`cms` のプレビューは常に全件を出力する。
+`isPublished` はビルド時に一度だけ判定する。公開日時を過ぎた後に再ビルドしないと、ページは出力されない。環境のenvファイルの `SHOW_UNPUBLISHED=true` は、ビルドに `SHOW_UNPUBLISHED=1` を渡し、公開日時にかかわらず全件を出力する（stagingの確認用）。`site-deploy.yml` の入力 `show-unpublished`（`true`・`false`）を指定すると、envファイルより優先する（手動実行で一時的に状態を変えて確認するときに使う）。どちらも指定がなければfalse（公開日時で絞る）。`cms` のプレビューは常に全件を出力する。
 
 ### キャッシュ
 
-`site-deploy.yml` は、アップロード時に `Cache-Control` を付ける。ハッシュ付きのアセットのディレクトリ（入力 `immutable-assets-dir`、既定 `_astro`）は `public, max-age=31536000, immutable`、それ以外（HTML、管理画面を含む）は `no-cache`（ブラウザは毎回確認する）。`CLOUDFRONT_DISTRIBUTION_ID` があれば、配置のたびに無効化する。古いハッシュのアセットは削除しない（HTMLが参照するのは新しいハッシュだけなので、残っても表示には影響しない）。
+`site-deploy.yml` は、アップロード時に `Cache-Control` を付ける。ハッシュ付きのアセットのディレクトリ `_astro`（Astroの既定の出力先）は `public, max-age=31536000, immutable`、それ以外（HTML、管理画面を含む）は `no-cache`（ブラウザは毎回確認する）。`CLOUDFRONT_DISTRIBUTION_ID` があれば、配置のたびに無効化する。古いハッシュのアセットは削除しない（HTMLが参照するのは新しいハッシュだけなので、残っても表示には影響しない）。
 
 ### workflowの呼び出し
 
@@ -139,13 +140,16 @@ jobs:
     uses: vlstyle/static-site-cms/.github/workflows/site-deploy.yml@<コミットハッシュ>
     with:
       environment: staging
-      show-unpublished: true
 ```
 
 ```yaml
-# .github/workflows/deploy-production.yml: 手動実行（config/production.env の PUBLISH_SHA のコミットを出す）
+# .github/workflows/deploy-production.yml: 手動実行（config/production.env の PUBLISH_SHA のコミットを出す）。show-unpublished は、手動実行のときだけ状態を変えて確認したい場合に渡す
 on:
   workflow_dispatch:
+    inputs:
+      show-unpublished:
+        type: choice
+        options: ["", "true", "false"]
 permissions:
   id-token: write
   contents: read
@@ -156,6 +160,7 @@ jobs:
     uses: vlstyle/static-site-cms/.github/workflows/site-deploy.yml@<コミットハッシュ>
     with:
       environment: production
+      show-unpublished: ${{ inputs.show-unpublished }}
 ```
 
 ```yaml

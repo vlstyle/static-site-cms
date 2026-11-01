@@ -8,17 +8,9 @@ on:
         type: string
         required: true
       show-unpublished:
-        description: "trueにすると、公開日時が未来のページも出力する（cms のプレビューは常に出力する）"
-        type: boolean
-        default: false
-      config-dir:
-        description: "環境ごとのenvファイルを置くディレクトリ"
+        description: "true/false。公開日時が未来のページも出力するか。指定すると、envファイルの SHOW_UNPUBLISHED より優先する。どちらもなければfalse（cms のプレビューは常に出力する）"
         type: string
-        default: config
-      immutable-assets-dir:
-        description: "ビルド出力(dist)の中の、ファイル名にハッシュが付くアセットのディレクトリ。Cache-Control: public, max-age=31536000, immutable を付けてアップロードする。それ以外は no-cache"
-        type: string
-        default: _astro
+        default: ""
 
 permissions:
   id-token: write
@@ -38,6 +30,7 @@ jobs:
       bucket: ${{ steps.c.outputs.bucket }}
       prefix: ${{ steps.c.outputs.prefix }}
       distribution_id: ${{ steps.c.outputs.distribution_id }}
+      show_unpublished: ${{ steps.c.outputs.show_unpublished }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -45,7 +38,7 @@ jobs:
       - id: c
         env:
           ENVIRONMENT: ${{ inputs.environment }}
-          CONFIG_DIR: ${{ inputs.config-dir }}
+          SHOW_UNPUBLISHED_INPUT: ${{ inputs.show-unpublished }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_ACTION: ${{ github.event.action }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -54,9 +47,9 @@ jobs:
           fail() { echo "$1" >&2; exit 1; }
 
           [[ "$ENVIRONMENT" =~ ^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$ ]] || fail "environment は英小文字・数字・ハイフンのみ（先頭と末尾は英数字）: ${ENVIRONMENT}"
-          [[ "$CONFIG_DIR" != /* && "$CONFIG_DIR" != *..* ]] || fail "config-dir は相対パスで指定してください: ${CONFIG_DIR}"
+          [[ "$SHOW_UNPUBLISHED_INPUT" =~ ^(true|false)?$ ]] || fail "show-unpublished は true か false で指定してください: ${SHOW_UNPUBLISHED_INPUT}"
 
-          file="${CONFIG_DIR}/${ENVIRONMENT}.env"
+          file="config/${ENVIRONMENT}.env"
           [ -f "$file" ] || fail "${file} がありません"
           json=$(jq -Rn '[inputs | select(test("^[A-Z0-9_]+=")) | capture("^(?<k>[A-Z0-9_]+)=(?<v>.*)$") | {key: .k, value: .v}] | from_entries' "$file")
           get() { jq -r --arg k "$1" '.[$k] // empty' <<<"$json"; }
@@ -97,6 +90,9 @@ jobs:
           [ -n "$role_arn" ] || fail "${file} に ${role_key} がありません"
           [ -n "$bucket" ] || fail "${file} に S3_BUCKET がありません"
 
+          show_unpublished="${SHOW_UNPUBLISHED_INPUT:-$(get SHOW_UNPUBLISHED)}"
+          [[ "$show_unpublished" =~ ^(true|false)?$ ]] || fail "${file} の SHOW_UNPUBLISHED は true か false で指定してください: ${show_unpublished}"
+
           prefix=$(get PREFIX)
           region=$(get AWS_REGION)
           site_url=$(get SITE_URL)
@@ -115,6 +111,7 @@ jobs:
             echo "bucket=${bucket}"
             echo "prefix=${prefix:-$prefix_default}"
             echo "distribution_id=$(get CLOUDFRONT_DISTRIBUTION_ID)"
+            echo "show_unpublished=${show_unpublished:-false}"
           } >> "$GITHUB_OUTPUT"
           echo "環境: ${ENVIRONMENT} / 動作: ${mode} / コミット: ${ref:-（PRのマージコミット）}" >> "$GITHUB_STEP_SUMMARY"
 
@@ -135,7 +132,7 @@ jobs:
         env:
           MODE: ${{ needs.config.outputs.mode }}
           SITE_URL: ${{ needs.config.outputs.site_url }}
-          SHOW_UNPUBLISHED: ${{ inputs.show-unpublished && '1' || '' }}
+          SHOW_UNPUBLISHED: ${{ needs.config.outputs.show_unpublished == 'true' && '1' || '' }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           case "$MODE" in
@@ -178,10 +175,10 @@ jobs:
           BUCKET: ${{ needs.config.outputs.bucket }}
           PREFIX: ${{ needs.config.outputs.prefix }}
           DISTRIBUTION_ID: ${{ needs.config.outputs.distribution_id }}
-          ASSETS_DIR: ${{ inputs.immutable-assets-dir }}
         run: |
+          ASSETS_DIR=_astro
           exclude=()
-          if [ -n "$ASSETS_DIR" ] && [ -d "dist/${ASSETS_DIR}" ]; then
+          if [ -d "dist/${ASSETS_DIR}" ]; then
             aws s3 sync "dist/${ASSETS_DIR}" "s3://${BUCKET}/${PREFIX}/${ASSETS_DIR}/" --cache-control "public, max-age=31536000, immutable"
             exclude=(--exclude "${ASSETS_DIR}/*")
           fi
