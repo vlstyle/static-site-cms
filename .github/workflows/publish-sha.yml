@@ -1,0 +1,87 @@
+name: Publish SHA
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: "本番に出すコミットのSHA（7桁または40桁の小文字）。7桁は40桁に補完する"
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_SHA: ${{ inputs.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          BRANCH: publish/update-sha
+        run: |
+          set -euo pipefail
+          fail() { echo "$1" >&2; exit 1; }
+
+          [ "$GITHUB_REF" = "refs/heads/${DEFAULT_BRANCH}" ] || fail "デフォルトブランチ（${DEFAULT_BRANCH}）から実行してください。実行元: ${GITHUB_REF}"
+          [[ "$INPUT_SHA" =~ ^([0-9a-f]{7}|[0-9a-f]{40})$ ]] || fail "sha は7桁または40桁の小文字の16進数で指定してください: ${INPUT_SHA}"
+
+          if [ "${#INPUT_SHA}" -eq 40 ]; then
+            candidates="$INPUT_SHA"
+          else
+            candidates=$(git rev-parse --disambiguate="$INPUT_SHA")
+          fi
+          commits=$(for c in $candidates; do
+            if [ "$(git cat-file -t "$c" 2>/dev/null)" = commit ]; then echo "$c"; fi
+          done)
+          count=$(grep -c . <<<"$commits" || true)
+          [ "$count" -ne 0 ] || fail "コミットが見つかりません: ${INPUT_SHA}"
+          [ "$count" -eq 1 ] || fail "7桁が複数のコミットに一致します。桁数を増やしてください: ${INPUT_SHA}"
+          full="$commits"
+          git merge-base --is-ancestor "$full" "origin/${DEFAULT_BRANCH}" || fail "デフォルトブランチ（${DEFAULT_BRANCH}）に含まれていないコミットです: ${full}"
+
+          file=config/production.env
+          [ -f "$file" ] || fail "${file} がありません"
+          current=$(sed -n 's/^PUBLISH_SHA=//p' "$file" | head -n1)
+          if [ "$current" = "$full" ]; then
+            echo "PUBLISH_SHA は変更なし: ${full}"
+            exit 0
+          fi
+          if grep -q '^PUBLISH_SHA=' "$file"; then
+            sed -i "s/^PUBLISH_SHA=.*/PUBLISH_SHA=${full}/" "$file"
+          else
+            [ -z "$(tail -c1 "$file")" ] || echo >> "$file"
+            echo "PUBLISH_SHA=${full}" >> "$file"
+          fi
+
+          short="${full:0:7}"
+          title="本番に出すコミットを${short}にする"
+          {
+            echo "${file} の PUBLISH_SHA を更新する。マージ後に Deploy production を実行すると、このコミットが本番に出る。"
+            echo
+            echo "- 変更前: \`${current:-（未設定。デフォルトブランチのHEAD）}\`"
+            echo "- 変更後: \`${full}\`"
+            if [ -n "$current" ] && git cat-file -e "${current}^{commit}" 2>/dev/null; then
+              echo
+              echo "含まれるコミット（変更前から変更後、新しい順に最大30件）:"
+              echo
+              git log --no-decorate --format='- `%h` %s' -n 30 "${current}..${full}"
+            fi
+          } > "$RUNNER_TEMP/body.md"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git add -- "$file"
+          git commit -m "$title"
+          git push --force origin "$BRANCH"
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
+            gh pr create --base "$DEFAULT_BRANCH" --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr edit "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          fi
