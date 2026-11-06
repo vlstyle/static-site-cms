@@ -82,13 +82,11 @@ Rulesetの必須チェック名は、呼び出し側のジョブIDを前置し�
 | キー | 内容 | 対象 |
 |---|---|---|
 | `S3_BUCKET` | 配置先のS3バケット（必須） | すべて |
-| `DEPLOY_ROLE_ARN` | 配置に使うロール（必須）。`cms` では管理画面を配置するロール | すべて |
+| `DEPLOY_ROLE_ARN` | 配置に使うロール（必須）。`cms` では管理画面とプレビューの両方を配置する | すべて |
 | `AWS_REGION` | 既定 `ap-northeast-1` | すべて |
 | `PREFIX` | バケット内のプレフィックス。既定は環境名（`cms` は `cms`） | すべて |
 | `CLOUDFRONT_DISTRIBUTION_ID` | 配置後にキャッシュを無効化するディストリビューション。サイトは `/*`、`cms` の管理画面は `/admin/*`。ロールに `cloudfront:CreateInvalidation` が必要 | すべて |
-| `SITE_URL` | ビルドに渡す `SITE_URL` | `cms` 以外 |
-| `CMS_DOMAIN` | 管理画面とプレビューのドメイン（必須）。`SITE_URL` は `https://<CMS_DOMAIN>` になる | `cms` |
-| `PREVIEW_ROLE_ARN` | プレビューを配置するロール（PRで必須） | `cms` |
+| `SITE_URL` | ビルドに渡す `SITE_URL`。`cms` では管理画面とプレビューのURL（`https://<ドメイン>`、必須） | すべて |
 | `SHOW_UNPUBLISHED` | `true` にすると、公開日時が未来のページも出力する（staging向け）。省略はfalse。workflowの入力 `show-unpublished` が優先する | `cms` 以外 |
 | `PUBLISH_SHA` | 本番に出すコミット（40桁）。デフォルトブランチに含まれていること。省略するとデフォルトブランチのHEAD | `production` |
 
@@ -130,9 +128,9 @@ jobs:
 Terraformを使わない場合は、次を満たすように作る。
 
 - S3バケットを1つ、環境ごとのプレフィックス（`cms/`・`staging/`・`production/` など）で使う。
-- 配信するCloudFrontのoriginは、バケットの該当プレフィックス（`origin_path`）にする。管理画面とプレビューは `cms/admin/`・`cms/preview/pr-<番号>/`、ドメインは `CMS_DOMAIN`。プレビューはサブパス（`/preview/pr-<番号>/`）で配信できること。
+- 配信するCloudFrontのoriginは、バケットの該当プレフィックス（`origin_path`）にする。管理画面とプレビューは `cms/admin/`・`cms/preview/pr-<番号>/`、ドメインは `SITE_URL` のホスト。プレビューはサブパス（`/preview/pr-<番号>/`）で配信できること。
 - IP制限やBasic認証は、CloudFront側（Terraformのスタックでは CloudFront Function）で設定する。デプロイのworkflowは設定しない。
-- GitHub ActionsのOIDCで引き受けるIAMロールを作る。信頼ポリシーのsubjectは、`cms` の `DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:ref:refs/heads/<デフォルトブランチ>`、`PREVIEW_ROLE_ARN` が `repo:<owner>/<repo>:pull_request`、それ以外の環境の `DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:environment:<環境名>`。
+- GitHub ActionsのOIDCで引き受けるIAMロールを作る。信頼ポリシーのsubjectは、`cms` の `DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:ref:refs/heads/<デフォルトブランチ>`（管理画面）と `repo:<owner>/<repo>:pull_request`（プレビュー）の両方、それ以外の環境の `DEPLOY_ROLE_ARN` が `repo:<owner>/<repo>:environment:<環境名>`。
 - 各ロールの権限は、自分のプレフィックスへの `s3:ListBucket`（`s3:prefix` 条件）と `s3:GetObject`・`PutObject`・`DeleteObject`。ディストリビューションを指定するなら、`cloudfront:CreateInvalidation`。
 
 ### 公開日時

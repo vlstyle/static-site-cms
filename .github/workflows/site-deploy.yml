@@ -61,11 +61,9 @@ jobs:
 
           ref="$GITHUB_SHA"
           release_sha=""
-          role_key=DEPLOY_ROLE_ARN
           if [ "$ENVIRONMENT" = cms ]; then
             prefix_default=cms
             if [ "$EVENT_NAME" = pull_request ]; then
-              role_key=PREVIEW_ROLE_ARN
               ref=""
               if [ "$EVENT_ACTION" = closed ]; then
                 mode=cleanup
@@ -103,9 +101,9 @@ jobs:
             fi
           fi
 
-          role_arn=$(get "$role_key")
+          role_arn=$(get DEPLOY_ROLE_ARN)
           bucket=$(get S3_BUCKET)
-          [ -n "$role_arn" ] || fail "${file} に ${role_key} がありません"
+          [ -n "$role_arn" ] || fail "${file} に DEPLOY_ROLE_ARN がありません"
           [ -n "$bucket" ] || fail "${file} に S3_BUCKET がありません"
 
           show_unpublished="${SHOW_UNPUBLISHED_INPUT:-$(get SHOW_UNPUBLISHED)}"
@@ -114,10 +112,8 @@ jobs:
           prefix=$(get PREFIX)
           region=$(get AWS_REGION)
           site_url=$(get SITE_URL)
-          cms_domain=$(get CMS_DOMAIN)
           if [ "$ENVIRONMENT" = cms ]; then
-            [ -n "$cms_domain" ] || fail "${file} に CMS_DOMAIN がありません"
-            site_url="https://${cms_domain}"
+            [ -n "$site_url" ] || fail "${file} に SITE_URL がありません"
           fi
 
           {
