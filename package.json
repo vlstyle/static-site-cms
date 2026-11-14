@@ -29,6 +29,6 @@
   },
   "devDependencies": {
     "@sveltia/cms": "0.251.0",
-    "astro": "7.4.2"
+    "astro": "7.4.7"
   }
 }
